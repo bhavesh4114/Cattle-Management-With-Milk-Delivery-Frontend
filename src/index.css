@@ -1,0 +1,279 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-deep: #12372A;
+  --color-brand-primary: #198754;
+  --color-brand-dark: #146C43;
+  --color-brand-light: #E8F5EE;
+  --color-brand-soft: #DDF2E6;
+
+  --color-bg-main: #F7FAF8;
+  --color-bg-card: #FFFFFF;
+  --color-bg-input: #FFFFFF;
+
+  --color-text-main: #16302A;
+  --color-text-primary: #2F443D;
+  --color-text-secondary: #52635D;
+  --color-text-muted: #8A9A94;
+
+  --color-border-default: #DCE8E2;
+  --color-border-input: #CFE0D7;
+  --color-border-focus: #198754;
+
+  --color-sidebar-bg: #12372A;
+  --color-sidebar-text: #FFFFFF;
+  --color-sidebar-muted: #B9D5C7;
+  --color-sidebar-active-bg: #1F513D;
+  --color-sidebar-active-border: #43B97F;
+  --color-sidebar-icon: #8FD3B1;
+
+  --color-btn-primary: #198754;
+  --color-btn-primary-hover: #146C43;
+  --color-btn-primary-text: #FFFFFF;
+  --color-btn-secondary: #F7FAF8;
+  --color-btn-secondary-border: #BBDCCB;
+  --color-btn-secondary-text: #198754;
+
+  --color-mod-cows: #198754;
+  --color-mod-feed: #5B8C5A;
+  --color-mod-intake: #D99A00;
+  --color-mod-milk: #3478B5;
+  --color-mod-sales: #7657A8;
+  --color-mod-treatments: #D64545;
+  --color-mod-items: #8B6F47;
+  --color-mod-orders: #3478B5;
+  --color-mod-reports: #198754;
+
+  --color-status-success: #198754;
+  --color-status-warning: #D99A00;
+  --color-status-error: #D64545;
+  --color-status-info: #3478B5;
+}
+
+:root {
+  --sans: Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+
+  font: 16px/1.5 var(--sans);
+  color: var(--color-text-main);
+  background: var(--color-bg-main);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100svh;
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+p {
+  margin: 0;
+}
+
+/* Remove up/down arrows from number inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Global Table Styles for consistency across all modules */
+.table-wrap table, .table-wrapper table {
+  @apply w-full border-collapse text-sm text-left;
+}
+
+.table-wrap th, .table-wrapper th {
+  @apply bg-brand-light px-4 py-3 font-semibold text-text-main border-b border-border-default whitespace-nowrap;
+}
+
+.table-wrap td, .table-wrapper td {
+  @apply px-4 py-3 text-text-primary border-b border-border-default;
+}
+
+.table-wrap tr:last-child td, .table-wrapper tr:last-child td {
+  @apply border-b-0;
+}
+
+/* Global Responsive Tables for all modules */
+@media screen and (max-width: 768px) {
+  .table-wrap, .table-wrapper {
+    overflow: visible !important;
+  }
+  .table-wrap table, .table-wrapper table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    border: 0 !important;
+  }
+  .table-wrap thead, .table-wrapper thead {
+    display: none !important;
+  }
+  .table-wrap tbody, 
+  .table-wrap tr, 
+  .table-wrap td,
+  .table-wrapper tbody, 
+  .table-wrapper tr, 
+  .table-wrapper td {
+    display: block !important;
+    width: 100% !important;
+  }
+  .table-wrap tr, .table-wrapper tr {
+    margin-bottom: 1rem !important;
+    overflow: hidden !important;
+    border-radius: 0.5rem !important;
+    border: 1px solid var(--color-border-default) !important;
+    background-color: var(--color-bg-card) !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  }
+  .table-wrap td, .table-wrapper td {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    border: none !important;
+    border-bottom: 1px solid var(--color-border-default) !important;
+    padding: 0.75rem 1rem !important;
+    text-align: right !important;
+  }
+  .table-wrap td:last-child, .table-wrapper td:last-child {
+    border-bottom: 0 !important;
+    background-color: var(--color-bg-main) !important;
+  }
+  .table-wrap td::before, .table-wrapper td::before {
+    content: attr(data-label) !important;
+    margin-right: 1rem !important;
+    text-align: left !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    color: var(--color-text-secondary) !important;
+  }
+}
+
+/* Mobile Optimizations for .cattle-page elements with inline styles */
+@media screen and (max-width: 768px) {
+  .cattle-page {
+    padding: 12px !important;
+  }
+  
+  /* Headings */
+  .cattle-page h2 {
+    font-size: 18px !important;
+  }
+  .cattle-page h3 {
+    font-size: 16px !important;
+  }
+  .cattle-page h4 {
+    font-size: 14px !important;
+  }
+  
+  /* Buttons */
+  .cattle-page button {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+    height: auto !important;
+  }
+  
+  /* Header flex containers (like in CowMilk) */
+  .cattle-page > div[style*="justify-content: space-between"] {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    margin-bottom: 12px !important;
+  }
+  
+  /* Stats Cards Grid */
+  .cattle-page > div[style*="grid-template-columns"] {
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+  }
+  
+  /* Inner stats cards */
+  .cattle-page > div[style*="grid-template-columns"] > div {
+    padding: 12px !important;
+    gap: 10px !important;
+    border-radius: 8px !important;
+  }
+  
+  /* Stat Card Icons */
+  .cattle-page div[style*="font-size: 28px"] {
+    font-size: 20px !important;
+    padding: 8px !important;
+  }
+  
+  /* Stat Card Values */
+  .cattle-page div[style*="font-size: 24px"] {
+    font-size: 18px !important;
+  }
+  
+  /* Common inputs */
+  .cattle-page input,
+  .cattle-page select,
+  .cattle-page textarea {
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  /* Toolbars */
+  .cattle-toolbar {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+  
+  .cattle-toolbar-actions {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+  
+  .cattle-toolbar-actions select,
+  .cattle-toolbar-actions input,
+  .cattle-toolbar-actions button {
+    flex: 1 1 auto;
+  }
+  
+  /* Topbar (Main Header) */
+  .admin-topbar {
+    padding: 12px 16px !important;
+  }
+  .admin-topbar h2 {
+    font-size: 20px !important;
+  }
+  .admin-topbar p {
+    font-size: 13px !important;
+  }
+  .mobile-menu-btn {
+    font-size: 24px !important;
+  }
+  .topbar-actions button {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+  }
+}
+
+

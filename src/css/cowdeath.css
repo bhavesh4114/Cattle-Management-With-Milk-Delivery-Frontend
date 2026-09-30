@@ -1,0 +1,228 @@
+@reference "../index.css";
+
+@layer components {
+  .cow-death-container {
+    @apply grid gap-6;
+  }
+
+  .death-toolbar {
+    @apply flex items-center justify-between gap-4 rounded-2xl border border-border-default bg-bg-card p-5 shadow-sm;
+  }
+
+  .death-toolbar h2 {
+    @apply m-0 text-[22px] font-extrabold text-text-main flex items-center gap-2;
+  }
+
+  .record-btn {
+    @apply cursor-pointer rounded-lg border-0 px-5 py-2.5 font-bold text-btn-primary-text bg-btn-primary hover:bg-btn-primary-hover transition shadow-sm;
+  }
+
+  .death-filter-bar {
+    @apply flex items-center justify-between rounded-xl border border-border-default bg-bg-main p-4;
+  }
+
+  .filter-group {
+    @apply flex items-center gap-3;
+  }
+
+  .filter-group label {
+    @apply text-[13px] font-extrabold text-text-main;
+  }
+
+  .filter-group select {
+    @apply h-10 rounded-lg border border-border-input bg-bg-input px-3 text-[14px] font-semibold text-text-primary outline-none focus:border-border-focus focus:ring-4 focus:ring-brand-light;
+  }
+
+  .filter-stats {
+    @apply text-sm font-bold text-text-secondary;
+  }
+
+  .death-table-card, .select-cow-panel, .record-death-panel {
+    @apply overflow-hidden rounded-2xl border border-border-default bg-bg-card shadow-sm;
+  }
+
+  .table-header, .panel-header {
+    @apply bg-brand-deep px-5 py-4 text-white;
+  }
+
+  .panel-header.red {
+    @apply bg-status-error;
+  }
+
+  .table-header h3, .panel-header h2 {
+    @apply m-0 text-lg font-black flex items-center gap-2;
+  }
+
+  .panel-body {
+    @apply p-6 flex flex-col gap-5 bg-bg-main;
+  }
+
+  .search-input {
+    @apply h-11 w-full rounded-lg border border-border-input bg-bg-input px-4 text-[14px] font-semibold text-text-primary outline-none focus:border-border-focus focus:ring-4 focus:ring-brand-light;
+  }
+
+  .info-alert {
+    @apply rounded-lg bg-blue-50 px-4 py-3 text-sm font-bold text-status-info border border-blue-200;
+  }
+
+  .warning-alert {
+    @apply m-6 rounded-lg bg-yellow-50 px-4 py-3 text-sm font-bold text-status-warning border border-yellow-200;
+  }
+
+  .animal-select-list {
+    @apply grid gap-3 max-h-[400px] overflow-y-auto mt-2 pr-2;
+  }
+
+  .animal-select-card {
+    @apply flex items-center justify-between rounded-xl border border-border-default bg-bg-card p-4 transition hover:border-border-focus hover:shadow-md;
+  }
+
+  .asc-info h4 {
+    @apply m-0 mb-1.5 text-lg font-black text-text-main;
+  }
+
+  .asc-meta {
+    @apply flex flex-wrap items-center gap-3 text-[13px] font-bold text-text-secondary;
+  }
+
+  .asc-badge {
+    @apply rounded-md bg-brand-light px-2 py-0.5 text-brand-primary font-black border border-brand-soft;
+  }
+
+  .record-btn-red {
+    @apply cursor-pointer rounded-lg border-0 bg-status-error px-4 py-2 font-bold text-white hover:bg-red-700 transition shadow-md;
+  }
+
+  .panel-footer-center, .panel-footer-split {
+    @apply flex items-center border-t border-border-default bg-bg-main px-6 py-4;
+  }
+
+  .panel-footer-center {
+    @apply justify-center;
+  }
+
+  .panel-footer-split {
+    @apply justify-between;
+  }
+
+  .cancel-btn {
+    @apply cursor-pointer rounded-lg border border-btn-secondary-border bg-btn-secondary px-5 py-2 font-bold text-btn-secondary-text hover:bg-brand-soft transition;
+  }
+
+  /* Record Death Panel */
+  .animal-summary-box {
+    @apply flex flex-wrap justify-between gap-4 rounded-xl border border-border-default bg-bg-main p-5;
+  }
+
+  .animal-summary-box h4 {
+    @apply m-0 mb-3 text-lg font-black text-text-main;
+  }
+
+  .animal-summary-box p {
+    @apply m-0 mb-1.5 text-[13px] font-bold text-text-secondary;
+  }
+
+  .form-row-2 {
+    @apply grid gap-4 md:grid-cols-2;
+  }
+
+  .form-group {
+    @apply flex flex-col gap-2.5;
+  }
+
+  .form-group.half {
+    @apply w-1/2 pr-3;
+  }
+
+  .form-group label {
+    @apply text-[13px] font-black text-text-main;
+  }
+  
+  .panel-header.red + form .form-group label {
+      @apply text-status-error;
+  }
+
+  .form-group input, 
+  .form-group select, 
+  .form-group textarea {
+    @apply w-full rounded-lg border border-border-input bg-bg-input px-3 py-2 text-[14px] font-semibold text-text-primary outline-none focus:border-status-error focus:ring-4 focus:ring-red-100;
+  }
+
+  .disposal-box {
+    @apply flex flex-col gap-5 rounded-xl bg-bg-card p-5 mt-2 border border-border-default shadow-sm;
+  }
+  
+  .disposal-box h4 {
+      @apply m-0 text-text-secondary text-sm uppercase font-black border-b border-border-default pb-3;
+  }
+  
+  .del-btn {
+    @apply grid size-8 place-items-center rounded-lg bg-red-50 text-status-error border border-red-200 cursor-pointer transition hover:bg-status-error hover:text-white;
+  }
+  
+  .type-badge {
+    @apply rounded-md bg-brand-light px-2 py-0.5 text-xs text-brand-primary font-black border border-brand-soft;
+  }
+  
+  .error-msg {
+      @apply bg-red-50 text-status-error p-3 rounded-lg mx-6 mb-6 font-bold text-sm border border-red-200;
+  }
+
+  /* History View Styles */
+  .history-layout {
+    @apply flex flex-col gap-6 w-full;
+  }
+  
+  .history-grid-top {
+    @apply grid gap-6 md:grid-cols-2;
+  }
+
+  .history-master-card {
+    @apply bg-bg-card p-6 rounded-xl border border-border-default shadow-sm flex flex-col gap-4 text-[14px];
+  }
+
+  .history-death-card {
+    @apply bg-red-50 p-6 rounded-xl border border-red-200 flex flex-col gap-4 text-[14px] text-status-error;
+  }
+
+  .history-card-header {
+    @apply font-black text-lg mb-2 flex items-center gap-2;
+  }
+
+  .history-section-card {
+    @apply bg-bg-card rounded-xl border border-border-default shadow-sm overflow-hidden;
+  }
+
+  .history-table-header {
+    @apply bg-brand-primary px-5 py-4 text-white text-[15px] font-bold flex items-center gap-2;
+  }
+
+  .badge-history {
+    @apply bg-status-error text-white rounded-[4px] px-2 py-0.5 text-xs font-bold w-fit flex items-center justify-center;
+  }
+
+  .action-icon-btn {
+    @apply grid size-8 place-items-center rounded-lg border cursor-pointer transition;
+  }
+  
+  .view-history-btn {
+    @apply bg-blue-50 text-status-info border-blue-200 hover:bg-status-info hover:text-white;
+  }
+  
+  .delete-btn {
+    @apply bg-red-50 text-status-error border-red-200 hover:bg-status-error hover:text-white;
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm;
+  }
+
+  .modal-content {
+    @apply bg-white rounded-xl shadow-xl border border-slate-200 p-6 w-full max-w-md m-4 flex flex-col gap-4;
+  }
+
+  .modal-content h3 {
+    @apply m-0 text-xl font-bold text-slate-800;
+  }
+}

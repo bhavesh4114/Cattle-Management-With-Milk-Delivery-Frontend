@@ -1,0 +1,99 @@
+@reference "../index.css";
+
+@layer components {
+  .login-page {
+    @apply flex min-h-screen items-center justify-center bg-bg-main px-4 py-8;
+  }
+
+  .login-card {
+    @apply w-full max-w-[480px] rounded-2xl bg-bg-card p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-border-default;
+  }
+
+  .login-brand {
+    @apply mb-8 flex items-center justify-center gap-3 text-sm font-semibold tracking-wider text-text-secondary uppercase;
+  }
+
+  .login-badge {
+    @apply grid size-[40px] place-items-center rounded-xl bg-brand-deep text-white shadow-sm;
+  }
+
+  .login-badge svg,
+  .input-icon svg,
+  .password-toggle svg {
+    @apply size-[20px];
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .login-heading {
+    @apply mb-8 text-center;
+  }
+
+  .login-heading h1 {
+    @apply m-0 mb-2.5 text-2xl sm:text-3xl font-bold tracking-tight text-text-main;
+  }
+
+  .login-heading p {
+    @apply text-sm text-text-secondary leading-relaxed;
+  }
+
+  .login-form {
+    @apply flex flex-col gap-3;
+  }
+
+  .login-form label {
+    @apply text-sm font-medium text-text-primary mt-1;
+  }
+
+  .login-form label:first-of-type {
+    @apply mt-0;
+  }
+
+  .input-shell {
+    @apply flex h-12 items-center overflow-hidden rounded-xl border border-border-input bg-bg-input transition-all duration-200;
+  }
+
+  .input-shell:focus-within {
+    @apply border-border-focus bg-bg-card ring-4 ring-brand-light;
+  }
+
+  .input-icon {
+    @apply grid w-12 flex-none place-items-center text-text-muted;
+  }
+  
+  .input-shell:focus-within .input-icon {
+    @apply text-text-main;
+  }
+
+  .input-shell input {
+    @apply h-full w-full border-0 bg-transparent px-1 text-[15px] text-text-main placeholder:text-text-muted focus:outline-none focus:ring-0;
+  }
+
+  .password-toggle {
+    @apply grid size-12 flex-none cursor-pointer place-items-center bg-transparent text-text-muted hover:text-text-primary transition-colors border-0 outline-none;
+  }
+  
+  .input-shell:focus-within .password-toggle {
+    @apply text-text-secondary hover:text-text-main;
+  }
+
+  .password-toggle:focus-visible,
+  .login-button:focus-visible {
+    @apply outline-none ring-2 ring-border-focus ring-offset-2;
+  }
+
+  .login-button {
+    @apply mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-btn-primary text-[15px] font-semibold text-btn-primary-text transition-all duration-200 hover:bg-btn-primary-hover hover:shadow-md active:scale-[0.98];
+  }
+
+  .login-button:disabled {
+    @apply cursor-not-allowed opacity-70 active:scale-100;
+  }
+
+  .login-message {
+    @apply mt-6 min-h-[20px] text-center text-sm font-medium text-status-error;
+  }
+}

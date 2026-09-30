@@ -1,0 +1,356 @@
+@reference "../index.css";
+
+@layer components {
+  .admin-shell {
+    @apply grid min-h-svh grid-cols-[258px_minmax(0,1fr)] bg-bg-main;
+  }
+
+  .admin-sidebar {
+    @apply sticky top-0 h-screen overflow-y-auto border-r border-sidebar-bg bg-sidebar-bg text-sidebar-text shadow-lg;
+  }
+
+  .sidebar-brand {
+    @apply min-h-[94px] border-b border-[#1A4F3D] bg-sidebar-bg px-4 py-[18px];
+  }
+
+  .sidebar-brand h1 {
+    @apply m-0 mb-1.5 text-2xl font-extrabold leading-tight text-sidebar-text;
+  }
+
+  .sidebar-brand p {
+    @apply text-left text-sm font-medium text-sidebar-muted;
+  }
+
+  .sidebar-nav {
+    @apply grid gap-1 bg-transparent px-3 pt-[18px];
+  }
+
+  .nav-item {
+    @apply flex min-h-12 cursor-pointer items-center gap-[13px] rounded-lg border-0 bg-transparent px-3 text-left text-[15px] font-semibold text-sidebar-muted transition;
+  }
+
+  .nav-item span {
+    @apply grid w-[22px] min-w-[22px] place-items-center text-[15px] font-black text-sidebar-icon;
+  }
+
+  .nav-item:hover,
+  .nav-item.active {
+    @apply bg-sidebar-active-bg text-sidebar-text;
+  }
+
+  .nav-item.active {
+    @apply pl-3 shadow-[inset_3px_0_0_var(--color-sidebar-active-border)];
+  }
+
+  .nav-item:hover span,
+  .nav-item.active span {
+    @apply text-sidebar-text;
+  }
+
+  .admin-main {
+    @apply grid min-w-0 grid-rows-[auto_1fr_auto];
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .admin-topbar {
+    @apply flex min-h-[82px] items-center justify-between gap-[18px] border-b border-border-default bg-bg-card px-7 py-[18px] shadow-sm;
+  }
+
+  .admin-topbar h2 {
+    @apply m-0 text-[27px] font-extrabold leading-tight text-text-main;
+  }
+
+  .admin-topbar p {
+    @apply mt-1 text-sm text-text-secondary;
+  }
+
+  .topbar-actions {
+    @apply flex gap-4;
+  }
+
+  .topbar-actions button {
+    @apply min-h-9 cursor-pointer rounded-lg border border-btn-secondary-border bg-btn-secondary px-3 font-extrabold text-btn-secondary-text transition-colors hover:bg-brand-soft;
+  }
+
+  .admin-content {
+    @apply bg-bg-main p-5;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .stat-grid {
+    @apply mb-6 grid grid-cols-4 gap-4;
+  }
+
+  .stat-card {
+    @apply flex min-h-[85px] items-center gap-3 rounded-lg border border-border-default bg-bg-card px-4 py-3 shadow-sm;
+  }
+
+  .stat-card span {
+    @apply grid size-11 place-items-center rounded-full bg-brand-light font-black text-brand-primary;
+  }
+
+  .stat-card strong {
+    @apply block text-[22px] font-extrabold leading-none text-text-main;
+  }
+
+  .stat-card p {
+    @apply mt-1 text-xs text-text-secondary;
+  }
+
+  .stat-card.amber span {
+    @apply bg-yellow-50 text-status-warning;
+  }
+
+  .stat-card.blue span {
+    @apply bg-blue-50 text-status-info;
+  }
+
+  .stat-card.red span {
+    @apply bg-red-50 text-status-error;
+  }
+
+  .panel,
+  .records-panel,
+  .record-form {
+    @apply rounded-lg border border-border-default bg-bg-card shadow-sm;
+  }
+
+  .panel {
+    @apply p-5;
+  }
+
+  .panel-heading {
+    @apply mb-4 border-b border-border-default pb-2;
+  }
+
+  .panel-heading h3,
+  .record-form h3 {
+    @apply m-0 text-[18px] font-extrabold text-text-main;
+  }
+
+  .quick-grid {
+    @apply grid grid-cols-4 gap-4;
+  }
+
+  .quick-grid button {
+    @apply grid min-h-[90px] cursor-pointer place-items-center gap-2 rounded-lg border border-border-default bg-bg-card px-3 py-3 text-[14px] font-medium text-text-primary transition;
+  }
+
+  .quick-grid button:hover {
+    @apply -translate-y-px border-border-default bg-[#F0F9F4] shadow-md;
+  }
+
+  .quick-grid span {
+    @apply text-[20px] font-black text-brand-primary bg-brand-light p-1.5 rounded-xl;
+  }
+
+  .data-layout {
+    @apply grid grid-cols-[minmax(280px,360px)_minmax(0,1fr)] gap-[22px];
+  }
+
+  .record-form {
+    @apply grid content-start gap-3.5 p-[22px];
+  }
+
+  .record-form label {
+    @apply grid gap-1.5 text-[13px] font-extrabold text-text-main;
+  }
+
+  .record-form input,
+  .record-form select {
+    @apply min-h-[42px] w-full rounded-lg border border-border-input bg-bg-input px-2.5 py-2 text-text-primary focus:border-border-focus focus:ring-4 focus:ring-brand-light focus:outline-none transition-all;
+  }
+
+  .record-form button {
+    @apply min-h-11 cursor-pointer rounded-lg border-0 font-extrabold text-btn-primary-text bg-btn-primary hover:bg-btn-primary-hover transition-colors;
+  }
+
+  .form-message {
+    @apply min-h-[22px] text-sm font-extrabold text-status-error;
+  }
+
+  .records-panel {
+    @apply min-w-0 p-[22px];
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto;
+  }
+
+  table {
+    @apply w-full min-w-[620px] border-collapse;
+  }
+
+  th,
+  td {
+    @apply border-b border-border-default px-2.5 py-3 text-left align-top;
+  }
+
+  th {
+    @apply bg-blue-50 text-[13px] capitalize text-blue-900;
+  }
+
+  td {
+    @apply text-sm text-text-primary;
+  }
+
+  tr:hover td {
+    @apply bg-bg-main;
+  }
+
+  .report-grid {
+    @apply grid grid-cols-4 gap-3;
+  }
+
+  .report-grid p,
+  .empty-state {
+    @apply rounded-lg bg-bg-main p-4 font-bold text-text-secondary;
+  }
+
+  .admin-footer {
+    @apply grid min-h-[60px] place-items-center border-t border-border-default bg-bg-card p-4 text-center text-text-secondary;
+  }
+
+  .mobile-menu-btn {
+    @apply hidden cursor-pointer border-none bg-transparent text-text-primary transition hover:text-brand-primary;
+  }
+
+  .sidebar-close-btn {
+    @apply hidden cursor-pointer border-none bg-transparent text-2xl font-bold text-slate-300 transition hover:text-white;
+  }
+
+  .sidebar-backdrop {
+    @apply fixed inset-0 z-40 hidden bg-[#0f2f38]/50 backdrop-blur-[2px];
+  }
+
+  @media (max-width: 1100px) {
+    .admin-shell {
+      @apply grid-cols-1;
+    }
+
+    .mobile-menu-btn {
+      @apply block;
+    }
+
+    .sidebar-close-btn {
+      @apply block;
+    }
+
+    .sidebar-backdrop {
+      @apply block;
+    }
+
+    .admin-sidebar {
+      @apply fixed inset-y-0 left-0 z-50 w-[258px] -translate-x-full transition-transform duration-300;
+    }
+
+    .admin-sidebar.open {
+      @apply translate-x-0;
+    }
+
+    .sidebar-brand {
+      @apply min-h-0;
+    }
+
+    .sidebar-nav {
+      @apply flex flex-col;
+    }
+
+    .stat-grid,
+    .quick-grid,
+    .report-grid {
+      @apply grid-cols-2;
+    }
+
+    .data-layout {
+      @apply grid-cols-1;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .table-wrap {
+      @apply overflow-visible;
+    }
+
+    .table-wrap table {
+      @apply block min-w-0 border-0;
+    }
+
+    .table-wrap thead {
+      @apply hidden;
+    }
+
+    .table-wrap tbody, 
+    .table-wrap tr, 
+    .table-wrap td {
+      @apply block w-full;
+    }
+
+    .table-wrap tr {
+      @apply mb-4 overflow-hidden rounded-lg border border-[#e1ece5] bg-white shadow-sm;
+    }
+
+    .table-wrap td {
+      @apply flex items-center justify-between border-b border-[#e1ece5] px-4 py-3 text-right last:border-0;
+    }
+
+    .table-wrap td::before {
+      content: attr(data-label);
+      @apply mr-4 text-left text-[13px] font-extrabold uppercase text-[#516074];
+    }
+
+    .table-wrap td:last-child {
+      @apply bg-[#f9fbf9];
+    }
+
+    .row-actions {
+      @apply w-full justify-end;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .admin-topbar {
+      @apply flex-col items-start p-3;
+    }
+
+    .admin-content {
+      @apply p-3;
+    }
+
+    .sidebar-nav {
+      @apply grid-cols-1;
+    }
+
+    .stat-grid,
+    .quick-grid,
+    .report-grid {
+      @apply grid-cols-2 gap-3;
+    }
+
+    .stat-card {
+      @apply min-h-[90px] flex-col items-start px-3 py-3 gap-2;
+    }
+
+    .stat-card span {
+      @apply size-10 text-lg;
+    }
+
+    .stat-card strong {
+      @apply text-xl;
+    }
+
+    .stat-card p {
+      @apply mt-0.5 text-[11px] leading-tight;
+    }
+
+    .quick-grid button {
+      @apply min-h-[90px] px-2 py-3 text-xs gap-1.5;
+    }
+
+    .quick-grid span {
+      @apply text-[20px] p-1.5 rounded-lg;
+    }
+  }
+}
