@@ -166,6 +166,13 @@ const UserMilkOrder = () => {
     return p ? p.pricePerLitre : 0;
   };
 
+  const getUnit = (milkType) => {
+    const p = pricing.find(x => (x.name === milkType) || (x.milkType === milkType));
+    if (p && p.unit) return p.unit;
+    if (milkType && (milkType.toLowerCase().includes('milk') || milkType.toLowerCase().includes('chaas'))) return 'L';
+    return 'Qty';
+  };
+
   const openTrackOrder = async (id, orderType) => {
     setTrackModal({ isOpen: true, data: null, loading: true });
     try {
@@ -220,12 +227,12 @@ const UserMilkOrder = () => {
     const rate = s.pricePerLitre || getPriceForType(s.milkType);
 
     const tableData = [
-      [`Monthly Subscription - ${s.milkType}`, `${s.dailyQuantity} L`, days, `Rs. ${rate}`, `Rs. ${s.totalAmount}`]
+      [`Monthly Subscription - ${s.milkType}`, `${s.dailyQuantity} ${getUnit(s.milkType)}`, days, `Rs. ${rate}`, `Rs. ${s.totalAmount}`]
     ];
 
     autoTable(doc, {
       startY: 75,
-      head: [['Item Description', 'Quantity/Day', 'Days', 'Rate/Litre', 'Total Amount']],
+      head: [['Item Description', 'Quantity/Day', 'Days', 'Rate/Unit', 'Total Amount']],
       body: tableData,
       headStyles: { fillColor: [220, 252, 227], textColor: [22, 101, 52] },
       foot: [['', '', '', 'Grand Total Paid:', `Rs. ${s.totalAmount}`]],
@@ -392,7 +399,7 @@ const UserMilkOrder = () => {
                   {subscriptions.map(s => (
                     <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontWeight: 'bold' }}>{s.dailyQuantity} L/day</div>
+                        <div style={{ fontWeight: 'bold' }}>{s.dailyQuantity} {getUnit(s.milkType)}/day</div>
                         <div style={{ color: '#64748b' }}>{s.milkType}</div>
                       </td>
                       <td style={{ padding: '12px 16px', color: '#334155' }}>
@@ -497,7 +504,7 @@ const UserMilkOrder = () => {
                   {trials.map(t => (
                     <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontWeight: 'bold' }}>{t.dailyQuantity} L/day</div>
+                        <div style={{ fontWeight: 'bold' }}>{t.dailyQuantity} {getUnit(t.milkType)}/day</div>
                         <div style={{ color: '#64748b' }}>{t.milkType}</div>
                       </td>
                       <td style={{ padding: '12px 16px', color: '#334155' }}>
@@ -563,7 +570,7 @@ const UserMilkOrder = () => {
                 <strong style={{ color: '#475569' }}>Milk Type:</strong> <span>{viewModal.data.milkType}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}>
-                <strong style={{ color: '#475569' }}>Quantity:</strong> <span>{viewModal.data.dailyQuantity} L/day</span>
+                <strong style={{ color: '#475569' }}>Quantity:</strong> <span>{viewModal.data.dailyQuantity} {getUnit(viewModal.data.milkType)}/day</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}>
                 <strong style={{ color: '#475569' }}>Dates:</strong>
@@ -620,7 +627,7 @@ const UserMilkOrder = () => {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', color: '#475569', marginBottom: '8px' }}>Quantity (L/day)</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', color: '#475569', marginBottom: '8px' }}>Quantity / Day</label>
                   <input type="number" step="0.5" value={editModal.data.dailyQuantity || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, dailyQuantity: e.target.value } })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 import UserOrderTracking from './UserOrderTracking';
+import AlertPopup from '../components/AlertPopup';
 
 const UserProducts = () => {
     const [products, setProducts] = useState([]);
@@ -39,9 +40,25 @@ const UserProducts = () => {
         localStorage.setItem('userProductCart', JSON.stringify(cart));
     }, [cart]);
 
+    const [activeOrders, setActiveOrders] = useState([]);
+
     useEffect(() => {
         fetchProducts();
+        fetchMyOrders();
     }, []);
+
+    const fetchMyOrders = async () => {
+        try {
+            const [subRes, trialRes] = await Promise.all([
+                api.get('/api/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
+                api.get('/api/milk-module/trial/my-trials').catch(() => ({ data: [] }))
+            ]);
+            const all = [...(subRes.data || []), ...(trialRes.data || [])];
+            setActiveOrders(all.filter(o => !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(o.status)));
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     const fetchProducts = async () => {
         try {
@@ -60,13 +77,19 @@ const UserProducts = () => {
     };
 
     const addToCart = (product) => {
-        setCart(prev => {
-            const existing = prev.find(p => p.id === product.id);
-            if (existing) {
-                return prev.map(p => p.id === product.id ? { ...p, quantity: p.quantity + 1 } : p);
-            }
-            return [...prev, { ...product, quantity: 1 }];
-        });
+        const existingInCart = cart.find(p => p.id === product.id);
+        if (existingInCart) {
+            showToast('This product is already saved in the cart, you cannot add it again.', 'error');
+            return;
+        }
+
+        const alreadyOrdered = activeOrders.find(o => o.productId === product.id || o.milkType === product.name);
+        if (alreadyOrdered) {
+            showToast('You already have an active order for this product. You cannot order it again until it is completed.', 'error');
+            return;
+        }
+
+        setCart(prev => [...prev, { ...product, quantity: 1 }]);
         showToast('Added to Cart!');
     };
 
@@ -148,6 +171,7 @@ const UserProducts = () => {
 
     return (
         <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', fontFamily: '"Inter", sans-serif' }}>
+            <AlertPopup />
             {toast.text && (
                 <div style={{ position: 'fixed', top: '24px', right: '24px', background: toast.type === 'error' ? '#ef4444' : '#10b981', color: 'white', padding: '16px 24px', borderRadius: '12px', zIndex: 9999, fontWeight: 'bold', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
                     {toast.text}
@@ -277,7 +301,22 @@ const UserProducts = () => {
                                     onMouseLeave={(e) => e.target.style.borderColor = '#e2e8f0'}>
                                     Add to Cart
                                 </button>
-                                <button onClick={() => { addToCart(viewingProduct); setViewingProduct(null); setShowCart(false); openCheckoutModal('Single'); }} style={{ flex: 1, padding: '16px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '1.1rem', cursor: 'pointer', transition: 'background 0.2s ease', boxShadow: '0 10px 15px -3px rgba(15,23,42,0.3)' }}
+                                <button onClick={() => { 
+                                    const existingInCart = cart.find(p => p.id === viewingProduct.id);
+                                    const alreadyOrdered = activeOrders.find(o => o.productId === viewingProduct.id || o.milkType === viewingProduct.name);
+                                    
+                                    if (alreadyOrdered) {
+                                        showToast('You already have an active order for this product. You cannot order it again until it is completed.', 'error');
+                                        return;
+                                    }
+                                    
+                                    if (!existingInCart) {
+                                        setCart(prev => [...prev, { ...viewingProduct, quantity: 1 }]);
+                                    }
+                                    setViewingProduct(null); 
+                                    setShowCart(false); 
+                                    openCheckoutModal('Single'); 
+                                }} style={{ flex: 1, padding: '16px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '1.1rem', cursor: 'pointer', transition: 'background 0.2s ease', boxShadow: '0 10px 15px -3px rgba(15,23,42,0.3)' }}
                                     onMouseEnter={(e) => e.target.style.background = '#1e293b'}
                                     onMouseLeave={(e) => e.target.style.background = '#0f172a'}>
                                     Buy Now

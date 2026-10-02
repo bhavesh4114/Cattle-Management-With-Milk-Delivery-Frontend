@@ -14,8 +14,8 @@ import CowMilk from "../../milk/pages/CowMilk";
 import AddMilk from "../../milk/pages/AddMilk";
 import EditMilk from "../../milk/pages/EditMilk";
 import Items from "../../stock/pages/Items";
-import Orders from "../../orders/pages/Orders";
 import UserProducts from "../../orders/pages/UserProducts";
+import AlertPopup from "../../orders/components/AlertPopup";
 import Report from "../../reports/pages/Report";
 import AlertReports from "../../reports/pages/AlertReports";
 import CowTreatment from "../../treatment/pages/CowTreatment";
@@ -108,16 +108,16 @@ const sections = [
     path: "/admin/reports",
   },
   {
-    key: "products",
-    label: "All Products",
-    icon: "📦",
-    path: "/admin/products",
-  },
-  {
     key: "alerts",
     label: "Alert Reports",
     icon: uiIcons.alerts,
     path: "/admin/alert-reports",
+  },
+  {
+    key: "products",
+    label: "All Products",
+    icon: "\uD83D\uDCE6",
+    path: "/admin/products",
   },
 ];
 
@@ -131,9 +131,7 @@ const sectionByKey = sections.reduce((map, section) => {
   return map;
 }, {});
 
-const configs = {
-
-};
+const configs = {};
 
 const quickActions = [
   ["cows", "Manage Cows", uiIcons.cows],
@@ -145,7 +143,6 @@ const quickActions = [
   ["reports", "Reports", uiIcons.reports],
   ["deaths", "Cow Death", uiIcons.deaths],
   ["items", "Items", uiIcons.items],
-  ["orders", "Orders", uiIcons.orders],
 ];
 
 const optionalFields = [
@@ -184,8 +181,6 @@ const getActiveKey = (pathname) => {
   if (pathname.startsWith("/admin/stock-update")) return "stock-update";
   if (pathname.startsWith("/admin/stock/current")) return "current-stock";
   if (pathname.startsWith("/admin/items")) return "items";
-  if (pathname.startsWith("/admin/orders")) return "orders";
-  if (pathname.startsWith("/admin/products")) return "products";
   return sectionByPath[pathname] || "dashboard";
 };
 
@@ -1016,7 +1011,7 @@ const AdminDashboard = () => {
         if (res.data && res.data.admin) {
           localStorage.setItem("adminData", JSON.stringify(res.data.admin));
           setAdminData(res.data.admin);
-          
+
           const roleName = res.data.admin?.customRole?.name?.toLowerCase() || "";
           if (roleName.includes("delivery") || roleName.includes("milk")) {
             navigate("/milk-admin/dashboard");
@@ -1097,6 +1092,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-shell">
+      <AlertPopup />
       {showFarmAlerts && (
         <FarmAlertsModal
           onClose={() => setShowFarmAlerts(false)}
@@ -1317,7 +1313,7 @@ const AdminDashboard = () => {
                 {currentActive === "new-stock-adjustment" && <ManualAdjustment />}
                 {currentActive === "stock-update" && <StockUpdate />}
                 {currentActive === "items" && <Items />}
-                {currentActive === "orders" && <Orders />}
+                {currentActive === "products" && <UserProducts />}
 
                 {currentActive === "reports" && <Report />}
 
@@ -1327,7 +1323,6 @@ const AdminDashboard = () => {
                 {currentActive === "my-deliveries" && <MyDeliveries />}
                 {currentActive === "delivery-boys" && <DeliveryBoyManagement />}
 
-                {currentActive === "products" && <UserProducts />}
 
                 {config && (
                   <section className="data-layout">

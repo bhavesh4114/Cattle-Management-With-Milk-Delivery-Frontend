@@ -75,27 +75,23 @@ const DeliveryBoyManagement = () => {
     }
   };
 
-  const handleAssignOrder = async (orderId, type) => {
+  const handleAssignGroup = async (group, type) => {
     try {
-      await api.post(`/api/delivery/assign/${type}/${orderId}`, { deliveryBoyId: assignModal.boy.id });
-      // Find the order to get customer name
-      const allOrders = type === 'sub' ? assignModal.subs : assignModal.trials;
-      const order = allOrders.find(o => o.id === orderId);
-      const customerName = order?.customerName || 'Customer';
+      await Promise.all(group.ids.map(id => api.post(`/api/delivery/assign/${type}/${id}`, { deliveryBoyId: assignModal.boy.id })));
+      const customerName = group.customerName || 'Customer';
       const boyName = assignModal.boy?.name || 'Delivery Boy';
-      // Show success popup
       setSuccessPopup({ show: true, customerName, boyName, type });
       setTimeout(() => setSuccessPopup({ show: false, customerName: '', boyName: '', type: '' }), 3500);
       setAssignModal(prev => {
         if (type === 'sub') {
-          return { ...prev, subs: prev.subs.map(s => s.id === orderId ? { ...s, deliveryBoyId: assignModal.boy.id } : s) };
+          return { ...prev, subs: prev.subs.map(s => group.ids.includes(s.id) ? { ...s, deliveryBoyId: assignModal.boy.id } : s) };
         } else {
-          return { ...prev, trials: prev.trials.map(t => t.id === orderId ? { ...t, deliveryBoyId: assignModal.boy.id } : t) };
+          return { ...prev, trials: prev.trials.map(t => group.ids.includes(t.id) ? { ...t, deliveryBoyId: assignModal.boy.id } : t) };
         }
       });
     } catch (e) {
       console.error(e);
-      showToast("Failed to assign order", "error");
+      showToast("Failed to assign orders", "error");
     }
   };
 
@@ -191,9 +187,24 @@ const DeliveryBoyManagement = () => {
         </div>
       )}
 
-      <div style={{ marginBottom: "24px" }}>
-        <h2 style={{ fontSize: "24px", fontWeight: "bold", color: "#1e293b", margin: 0 }}>Delivery Boy Management</h2>
-        <p style={{ color: "#64748b", margin: "4px 0 0 0", fontSize: "14px" }}>Set pincodes, areas, and daily availability for your delivery team.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: "24px", flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ fontSize: "24px", fontWeight: "bold", color: "#1e293b", margin: 0 }}>Delivery Boy Management</h2>
+          <p style={{ color: "#64748b", margin: "4px 0 0 0", fontSize: "14px" }}>Set pincodes, areas, and daily availability for your delivery team.</p>
+        </div>
+        <button 
+          onClick={async () => {
+            try {
+              const res = await api.post('/api/delivery/generate-daily-qr');
+              showToast(`Generated QR & OTP for ${res.data.count} deliveries!`);
+            } catch (e) {
+              showToast('Failed to generate QRs', 'error');
+            }
+          }}
+          style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          🔐 Generate Daily QR / OTP
+        </button>
       </div>
 
       {boys.length === 0 ? (
@@ -417,7 +428,7 @@ const DeliveryBoyManagement = () => {
 
             <div style={{ display: "flex", background: "#f1f5f9", padding: "12px 24px 0", gap: "16px", borderBottom: "1px solid #e2e8f0" }}>
               <button onClick={() => setAssignModal({ ...assignModal, activeTab: 'sub' })} style={{ padding: "10px 16px", background: assignModal.activeTab === 'sub' ? "white" : "transparent", border: "none", borderTopLeftRadius: "8px", borderTopRightRadius: "8px", cursor: "pointer", fontWeight: "600", color: assignModal.activeTab === 'sub' ? "#0f172a" : "#64748b", borderBottom: assignModal.activeTab === 'sub' ? "2px solid #3b82f6" : "none" }}>Subscriptions</button>
-              <button onClick={() => setAssignModal({ ...assignModal, activeTab: 'trial' })} style={{ padding: "10px 16px", background: assignModal.activeTab === 'trial' ? "white" : "transparent", border: "none", borderTopLeftRadius: "8px", borderTopRightRadius: "8px", cursor: "pointer", fontWeight: "600", color: assignModal.activeTab === 'trial' ? "#0f172a" : "#64748b", borderBottom: assignModal.activeTab === 'trial' ? "2px solid #3b82f6" : "none" }}>Trials</button>
+              <button onClick={() => setAssignModal({ ...assignModal, activeTab: 'trial' })} style={{ padding: "10px 16px", background: assignModal.activeTab === 'trial' ? "white" : "transparent", border: "none", borderTopLeftRadius: "8px", borderTopRightRadius: "8px", cursor: "pointer", fontWeight: "600", color: assignModal.activeTab === 'trial' ? "#0f172a" : "#64748b", borderBottom: assignModal.activeTab === 'trial' ? "2px solid #3b82f6" : "none" }}>Single Day</button>
             </div>
 
             <div style={{ padding: "24px", overflowY: "auto", flex: 1 }}>
@@ -442,29 +453,41 @@ const DeliveryBoyManagement = () => {
                 <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>Loading orders...</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {(assignModal.activeTab === 'sub' ? assignModal.subs : assignModal.trials).filter(o => o.status !== "Cancelled" && o.status !== "Completed" && o.status !== "Rejected").map(order => {
-                    const isAssignedToThis = order.deliveryBoyId === assignModal.boy.id;
-                    const isAssignedToOther = order.deliveryBoyId && !isAssignedToThis;
-
+                  {Object.values((assignModal.activeTab === 'sub' ? assignModal.subs : assignModal.trials)
+                    .filter(o => o.status !== "Cancelled" && o.status !== "Completed" && o.status !== "Rejected")
+                    .reduce((acc, o) => {
+                        const key = `${o.customerName}_${o.phone}_${o.address}`;
+                        if (!acc[key]) acc[key] = { ...o, items: [], ids: [], allAssignedToThis: true, assignedToOther: false };
+                        acc[key].items.push(o);
+                        acc[key].ids.push(o.id);
+                        if (o.deliveryBoyId !== assignModal.boy.id) acc[key].allAssignedToThis = false;
+                        if (o.deliveryBoyId && o.deliveryBoyId !== assignModal.boy.id) acc[key].assignedToOther = true;
+                        return acc;
+                    }, {})).map(group => {
                     return (
-                      <div key={order.id} style={{ padding: "16px", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isAssignedToThis ? "#f0fdf4" : "white" }}>
+                      <div key={group.ids.join('_')} style={{ padding: "16px", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", background: group.allAssignedToThis ? "#f0fdf4" : "white" }}>
                         <div>
-                          <div style={{ fontWeight: "700", color: "#1e293b", fontSize: "15px", marginBottom: "4px" }}>{order.customerName} - {order.milkType} ({order.quantity} L)</div>
-                          <div style={{ color: "#64748b", fontSize: "13px" }}>
-                            <span style={{ fontWeight: "600", color: "#475569" }}>Pincode:</span> {order.pincode} |
-                            <span style={{ fontWeight: "600", color: "#475569", marginLeft: "6px" }}>Address:</span> {order.address}
+                          <div style={{ fontWeight: "700", color: "#1e293b", fontSize: "15px", marginBottom: "8px" }}>{group.customerName} <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 'normal' }}>({group.phone})</span></div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
+                            {group.items.map(item => (
+                                <div key={item.id} style={{ color: "#3b82f6", fontWeight: "600", fontSize: "13px" }}>• {item.milkType} ({item.dailyQuantity || item.quantity} {item?.product?.unit || (item.milkType.toLowerCase().includes('milk') ? 'L' : 'Qty')})</div>
+                            ))}
                           </div>
-                          {isAssignedToOther && (
+                          <div style={{ color: "#64748b", fontSize: "13px" }}>
+                            <span style={{ fontWeight: "600", color: "#475569" }}>Pincode:</span> {group.pincode} |
+                            <span style={{ fontWeight: "600", color: "#475569", marginLeft: "6px" }}>Address:</span> {group.address}
+                          </div>
+                          {group.assignedToOther && (
                             <div style={{ fontSize: "12px", color: "#b45309", marginTop: "6px", background: "#fef3c7", padding: "2px 8px", borderRadius: "12px", display: "inline-block" }}>
-                              Already assigned to another delivery boy
+                              Some items already assigned to another boy
                             </div>
                           )}
                         </div>
                         <div>
-                          {isAssignedToThis ? (
+                          {group.allAssignedToThis ? (
                             <button disabled style={{ padding: "8px 16px", background: "#dcfce7", color: "#166534", border: "1px solid #86efac", borderRadius: "8px", fontWeight: "600", fontSize: "13px", cursor: "not-allowed" }}>✓ Assigned</button>
                           ) : (
-                            <button onClick={() => handleAssignOrder(order.id, assignModal.activeTab)} style={{ padding: "8px 16px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600", fontSize: "13px" }}>{isAssignedToOther ? "Reassign" : "Assign"}</button>
+                            <button onClick={() => handleAssignGroup(group, assignModal.activeTab)} style={{ padding: "8px 16px", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600", fontSize: "13px" }}>{group.assignedToOther ? "Reassign All" : "Assign All"}</button>
                           )}
                         </div>
                       </div>

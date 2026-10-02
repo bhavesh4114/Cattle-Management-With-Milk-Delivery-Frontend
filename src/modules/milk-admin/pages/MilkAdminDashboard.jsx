@@ -10,6 +10,8 @@ import MilkSubscriptionsAdmin from "./subscriptions/MilkSubscriptionsAdmin";
 import DeliveryBoyManagement from "./DeliveryBoyManagement";
 import MyDeliveries from "./MyDeliveries";
 import RoleCreation from "../../roles/pages/RoleCreation";
+import PaymentReminders from "../../orders/components/PaymentReminders";
+
 
 const MilkAdminDashboard = () => {
   const navigate = useNavigate();
@@ -104,11 +106,12 @@ const MilkAdminDashboard = () => {
             { id: "staff-reports", icon: "📋", label: "Staff Reports" },
             { id: "delivery", icon: "👥", label: "Delivery Boy Mgmt" },
             { id: "roles", icon: "🛡️", label: "Role Creation" },
+            { id: "announcements", icon: "📢", label: "Announcements" },
             { id: "my-deliveries", icon: "🛵", label: "My Deliveries" }
           ].filter(item => {
             if (isDeliveryBoy) return item.id === "my-deliveries";
             if (item.id === "my-deliveries") return false;
-            if (item.id === "roles") return adminData?.role === "ADMIN";
+            if (item.id === "roles" || item.id === "announcements") return adminData?.role === "ADMIN";
             return true;
           }).map((item) => (
             <button
@@ -180,8 +183,8 @@ const MilkAdminDashboard = () => {
                   <div style={{ fontSize: "24px", fontWeight: "bold", color: "#0f172a", marginTop: "4px" }}>{stats.totalCustomers}</div>
                 </div>
                 <div style={{ background: "white", padding: "16px", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #e2e8f0" }}>
-                  <div style={{ color: "#64748b", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Today's Delivery (Liters)</div>
-                  <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3b82f6", marginTop: "4px" }}>{stats.todayDelivery} L</div>
+                  <div style={{ color: "#64748b", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Today's Delivery (Qty)</div>
+                  <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3b82f6", marginTop: "4px" }}>{stats.todayDelivery} Units</div>
                 </div>
                 <div style={{ background: "white", padding: "16px", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #e2e8f0" }}>
                   <div style={{ color: "#64748b", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Pending Payments</div>
@@ -194,6 +197,7 @@ const MilkAdminDashboard = () => {
                   {[
                     { id: "products", icon: "📦", label: "Manage Products" },
                     { id: "orders", icon: "🛒", label: "All Orders" },
+                    { id: "announcements", icon: "📢", label: "Send Announcements" },
                     { id: "staff-reports", icon: "📋", label: "Staff Reports" },
                     { id: "delivery", icon: "👥", label: "Delivery Boy Mgmt" }
                   ].map((action) => (
@@ -243,8 +247,9 @@ const MilkAdminDashboard = () => {
           { activeTab === "delivery" && <DeliveryBoyManagement /> }
           { activeTab === "my-deliveries" && <MyDeliveries /> }
           { activeTab === "roles" && <RoleCreation /> }
+          { activeTab === "announcements" && <PaymentReminders /> }
 
-          {activeTab !== "dashboard" && activeTab !== "staff-reports" && activeTab !== "orders" && activeTab !== "products" && activeTab !== "subscriptions" && activeTab !== "trials" && activeTab !== "delivery" && activeTab !== "my-deliveries" && activeTab !== "roles" && (
+          {activeTab !== "dashboard" && activeTab !== "staff-reports" && activeTab !== "orders" && activeTab !== "products" && activeTab !== "subscriptions" && activeTab !== "trials" && activeTab !== "delivery" && activeTab !== "my-deliveries" && activeTab !== "roles" && activeTab !== "announcements" && (
             <div style={{ background: "white", padding: "40px", borderRadius: "16px", textAlign: "center", border: "1px dashed #cbd5e1" }}>
               <h3 style={{ color: "#475569", textTransform: "capitalize" }}>{activeTab} Module Coming Soon</h3>
             </div>

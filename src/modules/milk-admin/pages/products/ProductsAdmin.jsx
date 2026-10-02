@@ -8,6 +8,11 @@ const ProductsAdmin = () => {
     const [toast, setToast] = useState({ text: '', type: '' });
     const [editingId, setEditingId] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    // Custom Units state
+    const [availableUnits, setAvailableUnits] = useState(['L', 'ML', 'KG', 'G', 'Packet']);
+    const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
+    const [newUnitName, setNewUnitName] = useState('');
 
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
@@ -213,13 +218,18 @@ const ProductsAdmin = () => {
                                     <input type="text" value={form.size} onChange={e => setForm({...form, size: e.target.value})} placeholder="e.g. 1" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>Unit</label>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                        <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', margin: 0 }}>Unit</label>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setIsUnitModalOpen(true)}
+                                            style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                                        >
+                                            + Add Qty
+                                        </button>
+                                    </div>
                                     <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                                        <option>L</option>
-                                        <option>ML</option>
-                                        <option>KG</option>
-                                        <option>G</option>
-                                        <option>Packet</option>
+                                        {availableUnits.map((u, i) => <option key={i} value={u}>{u}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -242,6 +252,32 @@ const ProductsAdmin = () => {
                                 <button type="submit" style={{ flex: 1, padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>{editingId ? 'Update Product' : 'Save Product'}</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+            {isUnitModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1010, padding: '20px' }}>
+                    <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '350px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                        <h4 style={{ margin: '0 0 16px 0', color: '#1e293b', fontSize: '16px' }}>Add New Unit</h4>
+                        <input 
+                            type="text" 
+                            value={newUnitName}
+                            onChange={(e) => setNewUnitName(e.target.value)}
+                            placeholder="e.g. Box, Dozen"
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '16px' }}
+                            autoFocus
+                        />
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button type="button" onClick={() => { setIsUnitModalOpen(false); setNewUnitName(''); }} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                            <button type="button" onClick={() => {
+                                if (newUnitName.trim()) {
+                                    setAvailableUnits([...availableUnits, newUnitName.trim()]);
+                                    setForm({ ...form, unit: newUnitName.trim() });
+                                    setNewUnitName('');
+                                    setIsUnitModalOpen(false);
+                                }
+                            }} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Add</button>
+                        </div>
                     </div>
                 </div>
             )}

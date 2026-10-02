@@ -4,6 +4,7 @@ import DeliveryAssignmentPanel from '../subscriptions/DeliveryAssignmentPanel';
 
 const MilkTrialsAdmin = () => {
     const [trials, setTrials] = useState([]);
+    const [pricing, setPricing] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewModal, setViewModal] = useState({ isOpen: false, data: null });
     const [toast, setToast] = useState({ text: '', type: '' });
@@ -17,7 +18,17 @@ const MilkTrialsAdmin = () => {
     useEffect(() => {
         fetchTrials();
         fetchDeliveryBoys();
+        fetchProducts();
     }, []);
+
+    const fetchProducts = async () => {
+        try {
+            const res = await api.get('/api/products/active');
+            setPricing(res.data);
+        } catch (error) {
+            console.error("Error fetching products:", error);
+        }
+    };
 
     const fetchDeliveryBoys = async () => {
         try {
@@ -65,6 +76,15 @@ const MilkTrialsAdmin = () => {
         }
     };
 
+    const getUnit = (item) => {
+        if (item?.product?.unit) return item.product.unit;
+        const milkType = item?.milkType || item;
+        const p = pricing.find(x => (x.name === milkType) || (x.milkType === milkType));
+        if (p && p.unit) return p.unit;
+        if (milkType && (milkType.toLowerCase().includes('milk') || milkType.toLowerCase().includes('chaas'))) return 'L';
+        return 'Qty';
+    };
+
     if (loading) return <div style={{ padding: '20px' }}>Loading trials...</div>;
 
     return (
@@ -74,14 +94,14 @@ const MilkTrialsAdmin = () => {
                     {toast.text}
                 </div>
             )}
-            <h3 style={{ fontSize: "1.5rem", color: "#1e293b", marginBottom: "20px" }}>Trial Milk Requests</h3>
+            <h3 style={{ fontSize: "1.5rem", color: "#1e293b", marginBottom: "20px" }}>Trial / One-time Requests</h3>
 
             <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                     <thead>
                         <tr style={{ background: '#eff6ff', color: '#1e3a8a', textAlign: 'left' }}>
                             <th style={{ padding: '12px' }}>Customer</th>
-                            <th style={{ padding: '12px' }}>Milk Type</th>
+                            <th style={{ padding: '12px' }}>Product Type</th>
                             <th style={{ padding: '12px' }}>Quantity</th>
                             <th style={{ padding: '12px' }}>Trial Dates</th>
                             <th style={{ padding: '12px' }}>Status</th>
@@ -96,7 +116,7 @@ const MilkTrialsAdmin = () => {
                                     <span style={{ color: '#64748b' }}>{t.phone}</span>
                                 </td>
                                 <td style={{ padding: '12px' }}>{t.milkType}</td>
-                                <td style={{ padding: '12px', fontWeight: 'bold' }}>{t.dailyQuantity} L/day</td>
+                                <td style={{ padding: '12px', fontWeight: 'bold' }}>{t.dailyQuantity} {getUnit(t)}/day</td>
                                 <td style={{ padding: '12px', color: '#475569' }}>
                                     {t.startDate ? `${new Date(t.startDate).toLocaleDateString('en-GB')} to ${new Date(t.endDate).toLocaleDateString('en-GB')}` : 'Not started'}
                                 </td>
@@ -172,10 +192,10 @@ const MilkTrialsAdmin = () => {
                                     </div>
                                     <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />
                                     <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr' }}>
-                                        <strong style={{ color: '#475569' }}>Milk Type:</strong> <span style={{ color: '#0f172a', fontWeight: '500' }}>{viewModal.data.milkType}</span>
+                                        <strong style={{ color: '#475569' }}>Product:</strong> <span style={{ color: '#0f172a', fontWeight: '500' }}>{viewModal.data.milkType}</span>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr' }}>
-                                        <strong style={{ color: '#475569' }}>Quantity:</strong> <span style={{ color: '#0f172a', fontWeight: '500' }}>{viewModal.data.dailyQuantity} L/day</span>
+                                        <strong style={{ color: '#475569' }}>Quantity:</strong> <span style={{ color: '#0f172a', fontWeight: '500' }}>{viewModal.data.dailyQuantity} {getUnit(viewModal.data.milkType)}/day</span>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr' }}>
                                         <strong style={{ color: '#475569' }}>Dates:</strong> 

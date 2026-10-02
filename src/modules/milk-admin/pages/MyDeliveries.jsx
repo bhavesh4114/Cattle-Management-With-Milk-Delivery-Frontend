@@ -16,11 +16,12 @@ const MyDeliveries = () => {
   const [loading, setLoading] = useState(true);
   const [viewModal, setViewModal] = useState({ isOpen: false, data: null });
   const [toast, setToast] = useState({ text: "", type: "" });
-  const [rejectModal, setRejectModal] = useState({ isOpen: false, assignmentId: null, notes: "" });
+  const [rejectModal, setRejectModal] = useState({ isOpen: false, assignmentIds: [], notes: "" });
   const [profile, setProfile] = useState(null);
   const [todayStatus, setTodayStatus] = useState('Available');
   const [availModal, setAvailModal] = useState({ isOpen: false });
   const [availForm, setAvailForm] = useState({ date: new Date().toISOString().split("T")[0], status: "Available" });
+  const [otpModal, setOtpModal] = useState({ isOpen: false, assignmentIds: [], otp: "", loading: false });
 
   const showToast = (text, type = "success") => {
     setToast({ text, type });
@@ -64,9 +65,11 @@ const MyDeliveries = () => {
     } catch (e) {}
   };
 
-  const handleUpdateStatus = async (assignmentId, newStatus, notes) => {
+  const handleUpdateStatus = async (assignmentIds, newStatus, notes) => {
     try {
-      await api.put(`/api/delivery/status/${assignmentId}`, { deliveryStatus: newStatus, notes: notes || undefined });
+      await Promise.all(assignmentIds.map(id => 
+        api.put(`/api/delivery/status/${id}`, { deliveryStatus: newStatus, notes: notes || undefined })
+      ));
       showToast(`Status updated to ${newStatus}`);
       fetchDeliveries();
       if (viewModal.isOpen) {
@@ -74,6 +77,19 @@ const MyDeliveries = () => {
       }
     } catch (e) {
       showToast("Failed to update status", "error");
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    try {
+      setOtpModal(prev => ({ ...prev, loading: true }));
+      await api.post(`/api/delivery/verify-otp`, { assignmentId: otpModal.assignmentIds, otp: otpModal.otp });
+      showToast('OTP Verified successfully! Deliveries marked complete.');
+      setOtpModal({ isOpen: false, assignmentIds: [], otp: "", loading: false });
+      fetchDeliveries();
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Invalid OTP. Try again.', 'error');
+      setOtpModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -129,29 +145,49 @@ const MyDeliveries = () => {
             <div style={{ fontSize: "48px", marginBottom: "12px" }}>🚚</div>
             <div style={{ fontSize: "16px", fontWeight: "600" }}>No deliveries assigned yet.</div>
           </div>
-        ) : deliveries.map((d) => {
-          const sc = statusColors[d.deliveryStatus] || statusColors.Assigned;
+        ) : Object.values(deliveries.reduce((acc, d) => {
+            const customerName = d.order?.customerName || "N/A";
+            const address = d.order?.address || "N/A";
+            const status = d.deliveryStatus;
+            const key = `${customerName}_${address}_${status}`;
+            if (!acc[key]) {
+                acc[key] = { ...d, items: [], ids: [], orderIds: [] };
+            }
+            acc[key].items.push(d.order);
+            acc[key].ids.push(d.id);
+            acc[key].orderIds.push(d.orderId);
+            return acc;
+        }, {})).map((group) => {
+          const sc = statusColors[group.deliveryStatus] || statusColors.Assigned;
           return (
-            <div key={d.id} style={{ border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", background: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", transition: "transform 0.15s", cursor: "default" }}>
+            <div key={group.ids.join('_')} style={{ border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", background: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", transition: "transform 0.15s", cursor: "default" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                 <span style={{ fontWeight: "700", color: "#1e293b", fontSize: "15px" }}>
-                  #{d.orderId} <span style={{ fontSize: "11px", fontWeight: "500", color: "#64748b" }}>({d.orderType === "trial" ? "Trial" : "Subscription"})</span>
+                  #{group.orderIds.join(', #')} <span style={{ fontSize: "11px", fontWeight: "500", color: "#64748b" }}>({group.orderType === "trial" ? "Single Day" : "Subscription"})</span>
                 </span>
                 <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", background: sc.bg, color: sc.color, display: "flex", alignItems: "center", gap: "5px" }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: sc.dot, display: "inline-block" }} />
-                  {d.deliveryStatus}
+                  {group.deliveryStatus}
                 </span>
               </div>
-              <div style={{ fontSize: "14px", color: "#334155", marginBottom: "6px", fontWeight: "600" }}>👤 {d.order?.customerName || "N/A"}</div>
-              <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "4px" }}>📍 {d.order?.pincode ? `${d.order.pincode} - ` : ""}{d.order?.address || "N/A"}</div>
-              <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "4px" }}>📦 {d.order?.milkType}: <strong>{d.order?.dailyQuantity} L</strong></div>
+              <div style={{ fontSize: "14px", color: "#334155", marginBottom: "6px", fontWeight: "600" }}>👤 {group.order?.customerName || "N/A"}</div>
+              <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "8px" }}>📍 {group.order?.pincode ? `${group.order.pincode} - ` : ""}{group.order?.address || "N/A"}</div>
+              
+              <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "8px", marginBottom: "12px" }}>
+                {group.items.map((item, idx) => (
+                    <div key={idx} style={{ fontSize: "13px", color: "#334155", marginBottom: "4px" }}>
+                        📦 {item?.milkType}: <strong>{item?.dailyQuantity} {item?.product?.unit || (item?.milkType?.toLowerCase().includes('milk') ? 'L' : 'Qty')}</strong>
+                    </div>
+                ))}
+              </div>
+
               <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
-                📅 {d.orderType === "trial"
-                  ? fmt(d.order?.startDate)
-                  : fmt(d.order?.finalStartDate || d.order?.requestedStartDate)}
+                📅 {group.orderType === "trial"
+                  ? fmt(group.order?.startDate)
+                  : fmt(group.order?.finalStartDate || group.order?.requestedStartDate)}
               </div>
               <button
-                onClick={() => setViewModal({ isOpen: true, data: d })}
+                onClick={() => setViewModal({ isOpen: true, data: group })}
                 style={{ width: "100%", padding: "10px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "8px", cursor: "pointer", fontWeight: "600", color: "#334155", fontSize: "14px", transition: "background 0.2s" }}
               >
                 View Details
@@ -172,7 +208,7 @@ const MyDeliveries = () => {
           <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: "20px" }}>
             <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "440px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
               <div style={{ background: "#f8fafc", padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: 0, color: "#1e293b", fontSize: "18px", fontWeight: "700" }}>Delivery #{d.orderId}</h3>
+                <h3 style={{ margin: 0, color: "#1e293b", fontSize: "18px", fontWeight: "700" }}>Delivery #{d.orderIds.join(', #')}</h3>
                 <button onClick={() => setViewModal({ isOpen: false, data: null })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "22px", color: "#64748b" }}>✕</button>
               </div>
               <div style={{ padding: "24px", overflowY: "auto", maxHeight: "calc(90vh - 160px)" }}>
@@ -191,9 +227,13 @@ const MyDeliveries = () => {
                 <div style={{ marginBottom: "20px" }}>
                   <h4 style={{ margin: "0 0 12px 0", color: "#64748b", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Order Info</h4>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "14px" }}>
-                    <div><strong>Milk Type:</strong> {order?.milkType}</div>
-                    <div><strong>Quantity:</strong> {order?.dailyQuantity} L/day</div>
-                    <div><strong>Period:</strong> {d.orderType === "trial"
+                    {d.items.map((item, idx) => (
+                        <div key={idx} style={{ padding: "8px", background: "#f8fafc", borderRadius: "8px" }}>
+                            <div style={{ fontWeight: "600", color: "#3b82f6" }}>{item?.milkType}</div>
+                            <div style={{ color: "#475569" }}>Quantity: {item?.dailyQuantity} {item?.product?.unit || (item?.milkType?.toLowerCase().includes('milk') ? 'L' : 'Qty')}</div>
+                        </div>
+                    ))}
+                    <div style={{ marginTop: "8px" }}><strong>Period:</strong> {d.orderType === "trial"
                       ? `${fmt(order?.startDate)} → ${fmt(order?.endDate)}`
                       : `${fmt(order?.finalStartDate || order?.requestedStartDate)} → ${fmt(order?.finalEndDate || order?.requestedEndDate)}`}
                     </div>
@@ -224,14 +264,21 @@ const MyDeliveries = () => {
                   <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                     {nextStatus && (
                       <button
-                        onClick={() => { handleUpdateStatus(d.id, nextStatus); setViewModal({ ...viewModal, data: { ...d, deliveryStatus: nextStatus } }); }}
+                        onClick={() => {
+                          if (nextStatus === "Delivered") {
+                            setViewModal({ isOpen: false, data: null });
+                            setOtpModal({ isOpen: true, assignmentIds: d.ids, otp: "" });
+                          } else {
+                            handleUpdateStatus(d.ids, nextStatus); 
+                          }
+                        }}
                         style={{ flex: 1, padding: "12px", background: "#2e6f40", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}
                       >
-                        {nextStatus === "Accepted" ? "✓ Accept" : nextStatus === "Out for Delivery" ? "🚚 Start Delivery" : "✅ Mark Delivered"}
+                        {nextStatus === "Accepted" ? "✓ Accept" : nextStatus === "Out for Delivery" ? "🚚 Start Delivery" : "📲 Verify Customer OTP"}
                       </button>
                     )}
                     <button
-                      onClick={() => { setViewModal({ isOpen: false, data: null }); setRejectModal({ isOpen: true, assignmentId: d.id, notes: "" }); }}
+                      onClick={() => { setViewModal({ isOpen: false, data: null }); setRejectModal({ isOpen: true, assignmentIds: d.ids, notes: "" }); }}
                       style={{ padding: "12px 16px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: "8px", cursor: "pointer", fontWeight: "600", fontSize: "14px" }}
                     >
                       ✕ Reject
@@ -257,8 +304,8 @@ const MyDeliveries = () => {
               style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "14px", minHeight: "80px", resize: "vertical", boxSizing: "border-box" }}
             />
             <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
-              <button onClick={() => setRejectModal({ isOpen: false, assignmentId: null, notes: "" })} style={{ flex: 1, padding: "10px", background: "white", border: "1px solid #cbd5e1", borderRadius: "8px", cursor: "pointer", fontWeight: "600" }}>Cancel</button>
-              <button onClick={() => { handleUpdateStatus(rejectModal.assignmentId, "Rejected", rejectModal.notes); setRejectModal({ isOpen: false, assignmentId: null, notes: "" }); }}
+              <button onClick={() => setRejectModal({ isOpen: false, assignmentIds: [], notes: "" })} style={{ flex: 1, padding: "10px", background: "white", border: "1px solid #cbd5e1", borderRadius: "8px", cursor: "pointer", fontWeight: "600" }}>Cancel</button>
+              <button onClick={() => { handleUpdateStatus(rejectModal.assignmentIds, "Rejected", rejectModal.notes); setRejectModal({ isOpen: false, assignmentIds: [], notes: "" }); }}
                 style={{ flex: 1, padding: "10px", background: "#ef4444", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>Confirm Reject</button>
             </div>
           </div>
@@ -290,6 +337,35 @@ const MyDeliveries = () => {
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => setAvailModal({ isOpen: false })} style={{ flex: 1, padding: "10px", background: "white", border: "1px solid #cbd5e1", borderRadius: "8px", cursor: "pointer", fontWeight: "600" }}>Cancel</button>
               <button onClick={handleSetAvailability} style={{ flex: 1, padding: "10px", background: "#2e6f40", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OTP Verification Modal */}
+      {otpModal.isOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2200, padding: "20px" }}>
+          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "380px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.25)" }}>
+            <div style={{ background: "linear-gradient(135deg, #1e40af, #3b82f6)", padding: "20px 24px", color: "white", textAlign: "center" }}>
+              <div style={{ fontSize: "36px", marginBottom: "8px" }}>📲</div>
+              <h3 style={{ margin: 0, fontWeight: "800", fontSize: "18px" }}>Verify Delivery OTP</h3>
+              <p style={{ margin: "4px 0 0", fontSize: "13px", opacity: 0.9 }}>Ask the customer for their 4-digit PIN</p>
+            </div>
+            <div style={{ padding: "32px 24px", textAlign: "center" }}>
+              <input 
+                type="text" 
+                maxLength="4" 
+                value={otpModal.otp} 
+                onChange={e => setOtpModal({ ...otpModal, otp: e.target.value.replace(/\D/g, '') })} 
+                placeholder="0000"
+                style={{ width: "120px", padding: "16px", fontSize: "32px", textAlign: "center", letterSpacing: "8px", fontWeight: "800", color: "#1e293b", border: "2px solid #cbd5e1", borderRadius: "12px", outline: "none", background: "#f8fafc" }} 
+              />
+              <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
+                <button onClick={() => setOtpModal({ isOpen: false, assignmentIds: [], otp: "", loading: false })} style={{ flex: 1, padding: "14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer" }}>Cancel</button>
+                <button onClick={handleVerifyOtp} disabled={otpModal.otp.length !== 4 || otpModal.loading} style={{ flex: 1, padding: "14px", background: otpModal.otp.length === 4 ? "#10b981" : "#94a3b8", color: "white", border: "none", borderRadius: "10px", fontWeight: "800", cursor: otpModal.otp.length === 4 ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
+                  {otpModal.loading ? 'Verifying...' : 'Verify OTP'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
