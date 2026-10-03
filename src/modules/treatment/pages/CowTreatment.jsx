@@ -461,7 +461,7 @@ const CowTreatment = ({ prefillData, onChanged }) => {
     <div className="cattle-form-page">
             <div className="cattle-form-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>
-                {editingTreatmentId ? "Edit Treatment" : "Add Treatment"}
+                {editId ? "Edit Treatment" : "Add Treatment"}
               </h3>
               <button type="button" onClick={() => { setView("list"); setMilkDropInfo(null); prefillApplied.current = false; }} style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", padding: "8px 12px", borderRadius: "6px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"} onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}>
                 <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" height="18" width="18" xmlns="http://www.w3.org/2000/svg"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
@@ -470,7 +470,7 @@ const CowTreatment = ({ prefillData, onChanged }) => {
             
             <section className="cattle-form-section">
               <h4>Treatment Details</h4>
-              <form onSubmit={handleFormSubmit}>
+              <form onSubmit={handleSubmit}>
                 <div style={gridStyle}>
                   <div style={fieldStyle}>
                     <label style={labelStyle}>Treatment Date *</label>
@@ -527,8 +527,8 @@ const CowTreatment = ({ prefillData, onChanged }) => {
                   <textarea
                     rows={2}
                     placeholder="List given medicines..."
-                    value={form.medications}
-                    onChange={(e) => setForm({ ...form, medications: e.target.value })}
+                    value={form.medicine}
+                    onChange={(e) => setForm({ ...form, medicine: e.target.value })}
                     style={{ ...inputStyle, resize: "vertical" }}
                   />
                 </div>
@@ -549,7 +549,7 @@ const CowTreatment = ({ prefillData, onChanged }) => {
                     <label style={labelStyle}>Follow-up Date</label>
                     <input
                       type="date"
-                      value={form.followUpDate}
+                      value={form.followUpDate || ""}
                       onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
                       style={inputStyle}
                     />
@@ -561,8 +561,8 @@ const CowTreatment = ({ prefillData, onChanged }) => {
                   <textarea
                     rows={2}
                     placeholder="Any specific instructions..."
-                    value={form.notes}
-                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    value={form.remarks}
+                    onChange={(e) => setForm({ ...form, remarks: e.target.value })}
                     style={{ ...inputStyle, resize: "vertical" }}
                   />
                 </div>
@@ -578,7 +578,7 @@ const CowTreatment = ({ prefillData, onChanged }) => {
                   }}
                   onMouseOver={(e) => { if(!saving) { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 16px rgba(46,111,64,0.3)"; } }}
                   onMouseOut={(e) => { if(!saving) { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(46,111,64,0.2)"; } }}>
-                    {saving ? "Saving..." : (editingTreatmentId ? "Update Treatment" : "Save Treatment")}
+                    {saving ? "Saving..." : (editId ? "Update Treatment" : "Save Treatment")}
                   </button>
                 </div>
 

@@ -14,6 +14,7 @@ import CowMilk from "../../milk/pages/CowMilk";
 import AddMilk from "../../milk/pages/AddMilk";
 import EditMilk from "../../milk/pages/EditMilk";
 import Items from "../../stock/pages/Items";
+import Orders from "../../orders/pages/Orders";
 import UserProducts from "../../orders/pages/UserProducts";
 import AlertPopup from "../../orders/components/AlertPopup";
 import Report from "../../reports/pages/Report";
@@ -181,6 +182,7 @@ const getActiveKey = (pathname) => {
   if (pathname.startsWith("/admin/stock-update")) return "stock-update";
   if (pathname.startsWith("/admin/stock/current")) return "current-stock";
   if (pathname.startsWith("/admin/items")) return "items";
+  if (pathname.startsWith("/admin/orders")) return "orders";
   return sectionByPath[pathname] || "dashboard";
 };
 
@@ -1313,6 +1315,7 @@ const AdminDashboard = () => {
                 {currentActive === "new-stock-adjustment" && <ManualAdjustment />}
                 {currentActive === "stock-update" && <StockUpdate />}
                 {currentActive === "items" && <Items />}
+                {currentActive === "orders" && <Orders />}
                 {currentActive === "products" && <UserProducts />}
 
                 {currentActive === "reports" && <Report />}
