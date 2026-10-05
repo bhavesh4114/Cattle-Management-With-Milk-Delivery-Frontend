@@ -3,6 +3,7 @@ import api from '../../../services/api';
 
 const AlertPopup = () => {
     const [alert, setAlert] = useState(null);
+    const [working, setWorking] = useState(false);
 
     useEffect(() => {
         const fetchAlerts = async () => {
@@ -38,6 +39,27 @@ const AlertPopup = () => {
         }
     };
 
+    const handleDeliveryAction = async (action) => {
+        if (!alert) return;
+        setWorking(true);
+        try {
+            if (action === 'confirm') {
+                await api.post(`/api/delivery/${alert.orderId}/confirm`, { orderType: alert.orderType });
+            } else {
+                await api.post(`/api/delivery/${alert.orderId}/report-issue`, {
+                    orderType: alert.orderType,
+                    issue: 'Customer reported an issue from the delivery confirmation popup.'
+                });
+            }
+            await api.put(`/api/alerts/${alert.id}/read`);
+            setAlert(null);
+        } catch (e) {
+            console.error('Delivery confirmation failed', e);
+        } finally {
+            setWorking(false);
+        }
+    };
+
     if (!alert) return null;
 
     return (
@@ -46,16 +68,37 @@ const AlertPopup = () => {
                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#eff6ff', color: '#3b82f6', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
                     🔔
                 </div>
-                <h2 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '1.5rem', fontWeight: '800' }}>Important Announcement</h2>
+                <h2 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '1.5rem', fontWeight: '800' }}>
+                    {alert.type === 'DELIVERY_CONFIRMATION' ? 'Delivery Confirmation' : 'Important Announcement'}
+                </h2>
                 <p style={{ margin: '0 0 28px 0', color: '#475569', fontSize: '1.05rem', lineHeight: '1.5' }}>
                     {alert.message}
                 </p>
-                <button 
-                    onClick={handleDismiss}
-                    style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}
-                >
-                    Got it!
-                </button>
+                {alert.type === 'DELIVERY_CONFIRMATION' ? (
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                            onClick={() => handleDeliveryAction('issue')}
+                            disabled={working}
+                            style={{ flex: 1, padding: '14px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: working ? 'not-allowed' : 'pointer' }}
+                        >
+                            Report Issue
+                        </button>
+                        <button
+                            onClick={() => handleDeliveryAction('confirm')}
+                            disabled={working}
+                            style={{ flex: 1, padding: '14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: working ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}
+                        >
+                            Confirm Delivery
+                        </button>
+                    </div>
+                ) : (
+                    <button 
+                        onClick={handleDismiss}
+                        style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}
+                    >
+                        Got it!
+                    </button>
+                )}
             </div>
         </div>
     );

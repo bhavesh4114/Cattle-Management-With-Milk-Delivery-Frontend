@@ -5,11 +5,14 @@ const statusColors = {
   Assigned: { bg: "#dbeafe", color: "#1d4ed8", dot: "#3b82f6" },
   Accepted: { bg: "#e0e7ff", color: "#4338ca", dot: "#6366f1" },
   "Out for Delivery": { bg: "#fef3c7", color: "#b45309", dot: "#f59e0b" },
+  QR_SCANNED: { bg: "#ccfbf1", color: "#0f766e", dot: "#14b8a6" },
+  AWAITING_USER_CONFIRMATION: { bg: "#ede9fe", color: "#6d28d9", dot: "#8b5cf6" },
+  PARTIALLY_DELIVERED: { bg: "#ffedd5", color: "#c2410c", dot: "#f97316" },
   Delivered: { bg: "#dcfce7", color: "#15803d", dot: "#22c55e" },
   Rejected: { bg: "#fee2e2", color: "#b91c1c", dot: "#ef4444" },
 };
 
-const STATUS_FLOW = ["Assigned", "Accepted", "Out for Delivery", "Delivered"];
+const STATUS_FLOW = ["Assigned", "Accepted", "Out for Delivery", "QR_SCANNED", "AWAITING_USER_CONFIRMATION", "Delivered"];
 
 const MyDeliveries = () => {
   const [deliveries, setDeliveries] = useState([]);
@@ -21,7 +24,8 @@ const MyDeliveries = () => {
   const [todayStatus, setTodayStatus] = useState('Available');
   const [availModal, setAvailModal] = useState({ isOpen: false });
   const [availForm, setAvailForm] = useState({ date: new Date().toISOString().split("T")[0], status: "Available" });
-  const [otpModal, setOtpModal] = useState({ isOpen: false, assignmentIds: [], otp: "", loading: false });
+  const [qrModal, setQrModal] = useState({ isOpen: false, token: "", loading: false, error: "" });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, customer: null, orders: [], selected: {}, loading: false });
 
   const showToast = (text, type = "success") => {
     setToast({ text, type });
@@ -80,16 +84,62 @@ const MyDeliveries = () => {
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleScanQr = async () => {
     try {
-      setOtpModal(prev => ({ ...prev, loading: true }));
-      await api.post(`/api/delivery/verify-otp`, { assignmentId: otpModal.assignmentIds, otp: otpModal.otp });
-      showToast('OTP Verified successfully! Deliveries marked complete.');
-      setOtpModal({ isOpen: false, assignmentIds: [], otp: "", loading: false });
+      setQrModal(prev => ({ ...prev, loading: true, error: "" }));
+      const res = await api.post('/api/delivery/scan-qr', { qrToken: qrModal.token.trim() });
+      const selected = {};
+      res.data.orders.forEach(order => { selected[order.assignmentId] = true; });
+      setQrModal({ isOpen: false, token: "", loading: false, error: "" });
+      setConfirmModal({ isOpen: true, customer: res.data.customer, orders: res.data.orders, selected, loading: false });
       fetchDeliveries();
     } catch (e) {
-      showToast(e.response?.data?.message || 'Invalid OTP. Try again.', 'error');
-      setOtpModal(prev => ({ ...prev, loading: false }));
+      setQrModal(prev => ({ ...prev, loading: false, error: e.response?.data?.message || 'Unable to scan QR.' }));
+    }
+  };
+
+  const handleCameraScan = async () => {
+    if (!('BarcodeDetector' in window)) {
+      showToast('Camera QR scan is not supported in this browser. Paste the QR token instead.', 'error');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      await video.play();
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      let found = "";
+      for (let i = 0; i < 30 && !found; i++) {
+        const codes = await detector.detect(video);
+        found = codes[0]?.rawValue || "";
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      stream.getTracks().forEach(track => track.stop());
+      if (found) setQrModal(prev => ({ ...prev, token: found }));
+      else showToast('QR not detected. Try again or paste the token.', 'error');
+    } catch (e) {
+      showToast('Camera permission failed. Paste the QR token instead.', 'error');
+    }
+  };
+
+  const handleRequestConfirmation = async () => {
+    const selectedOrders = confirmModal.orders.filter(order => confirmModal.selected[order.assignmentId]);
+    if (selectedOrders.length === 0) return showToast('Select at least one delivered item.', 'error');
+    setConfirmModal(prev => ({ ...prev, loading: true }));
+    try {
+      await Promise.all(selectedOrders.map(order =>
+        api.post(`/api/delivery/${order.orderId}/request-confirmation`, {
+          orderType: order.orderType,
+          itemIds: [order.assignmentId]
+        })
+      ));
+      showToast('Customer confirmation requested.');
+      setConfirmModal({ isOpen: false, customer: null, orders: [], selected: {}, loading: false });
+      fetchDeliveries();
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Failed to request confirmation.', 'error');
+      setConfirmModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -265,16 +315,18 @@ const MyDeliveries = () => {
                     {nextStatus && (
                       <button
                         onClick={() => {
-                          if (nextStatus === "Delivered") {
+                          if (nextStatus === "QR_SCANNED" || nextStatus === "AWAITING_USER_CONFIRMATION") {
                             setViewModal({ isOpen: false, data: null });
-                            setOtpModal({ isOpen: true, assignmentIds: d.ids, otp: "" });
+                            setQrModal({ isOpen: true, token: "", loading: false, error: "" });
+                          } else if (nextStatus === "Delivered") {
+                            showToast("Waiting for customer confirmation.", "error");
                           } else {
                             handleUpdateStatus(d.ids, nextStatus); 
                           }
                         }}
                         style={{ flex: 1, padding: "12px", background: "#2e6f40", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}
                       >
-                        {nextStatus === "Accepted" ? "✓ Accept" : nextStatus === "Out for Delivery" ? "🚚 Start Delivery" : "📲 Verify Customer OTP"}
+                        {nextStatus === "Accepted" ? "✓ Accept" : nextStatus === "Out for Delivery" ? "🚚 Start Delivery" : nextStatus === "QR_SCANNED" ? "▣ Scan Door QR" : nextStatus === "AWAITING_USER_CONFIRMATION" ? "☑ Select Delivered Items" : "Awaiting Customer"}
                       </button>
                     )}
                     <button
@@ -342,28 +394,67 @@ const MyDeliveries = () => {
         </div>
       )}
 
-      {/* OTP Verification Modal */}
-      {otpModal.isOpen && (
+      {/* Door QR Scan Modal */}
+      {qrModal.isOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2200, padding: "20px" }}>
           <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "380px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.25)" }}>
-            <div style={{ background: "linear-gradient(135deg, #1e40af, #3b82f6)", padding: "20px 24px", color: "white", textAlign: "center" }}>
-              <div style={{ fontSize: "36px", marginBottom: "8px" }}>📲</div>
-              <h3 style={{ margin: 0, fontWeight: "800", fontSize: "18px" }}>Verify Delivery OTP</h3>
-              <p style={{ margin: "4px 0 0", fontSize: "13px", opacity: 0.9 }}>Ask the customer for their 4-digit PIN</p>
+            <div style={{ background: "linear-gradient(135deg, #0f766e, #14b8a6)", padding: "20px 24px", color: "white", textAlign: "center" }}>
+              <div style={{ fontSize: "36px", marginBottom: "8px" }}>▣</div>
+              <h3 style={{ margin: 0, fontWeight: "800", fontSize: "18px" }}>Scan Door QR</h3>
+              <p style={{ margin: "4px 0 0", fontSize: "13px", opacity: 0.9 }}>Scan or paste the customer's permanent QR token</p>
             </div>
-            <div style={{ padding: "32px 24px", textAlign: "center" }}>
-              <input 
+            <div style={{ padding: "24px", textAlign: "center" }}>
+              <button onClick={handleCameraScan} style={{ width: "100%", padding: "12px", background: "#ecfeff", color: "#0f766e", border: "1px solid #99f6e4", borderRadius: "10px", fontWeight: "800", cursor: "pointer", marginBottom: "14px" }}>
+                Open Camera Scanner
+              </button>
+              <input
                 type="text" 
-                maxLength="4" 
-                value={otpModal.otp} 
-                onChange={e => setOtpModal({ ...otpModal, otp: e.target.value.replace(/\D/g, '') })} 
-                placeholder="0000"
-                style={{ width: "120px", padding: "16px", fontSize: "32px", textAlign: "center", letterSpacing: "8px", fontWeight: "800", color: "#1e293b", border: "2px solid #cbd5e1", borderRadius: "12px", outline: "none", background: "#f8fafc" }} 
+                value={qrModal.token}
+                onChange={e => setQrModal({ ...qrModal, token: e.target.value, error: "" })}
+                placeholder="Paste QR token"
+                style={{ width: "100%", boxSizing: "border-box", padding: "12px", fontSize: "14px", color: "#1e293b", border: "1px solid #cbd5e1", borderRadius: "10px", outline: "none", background: "#f8fafc" }}
               />
+              {qrModal.error && <div style={{ marginTop: "10px", color: "#dc2626", fontSize: "13px", fontWeight: "600" }}>{qrModal.error}</div>}
               <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
-                <button onClick={() => setOtpModal({ isOpen: false, assignmentIds: [], otp: "", loading: false })} style={{ flex: 1, padding: "14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer" }}>Cancel</button>
-                <button onClick={handleVerifyOtp} disabled={otpModal.otp.length !== 4 || otpModal.loading} style={{ flex: 1, padding: "14px", background: otpModal.otp.length === 4 ? "#10b981" : "#94a3b8", color: "white", border: "none", borderRadius: "10px", fontWeight: "800", cursor: otpModal.otp.length === 4 ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
-                  {otpModal.loading ? 'Verifying...' : 'Verify OTP'}
+                <button onClick={() => setQrModal({ isOpen: false, token: "", loading: false, error: "" })} style={{ flex: 1, padding: "14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer" }}>Cancel</button>
+                <button onClick={handleScanQr} disabled={!qrModal.token.trim() || qrModal.loading} style={{ flex: 1, padding: "14px", background: qrModal.token.trim() ? "#10b981" : "#94a3b8", color: "white", border: "none", borderRadius: "10px", fontWeight: "800", cursor: qrModal.token.trim() ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
+                  {qrModal.loading ? 'Checking...' : 'Validate QR'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivered Items Selection Modal */}
+      {confirmModal.isOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2300, padding: "20px" }}>
+          <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "460px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.25)" }}>
+            <div style={{ background: "#f8fafc", padding: "20px 24px", borderBottom: "1px solid #e2e8f0" }}>
+              <h3 style={{ margin: 0, color: "#1e293b" }}>Select Delivered Items</h3>
+              <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: "14px" }}>Customer: <strong>{confirmModal.customer?.name}</strong></p>
+            </div>
+            <div style={{ padding: "24px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
+                {confirmModal.orders.map(order => (
+                  <label key={order.assignmentId} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!confirmModal.selected[order.assignmentId]}
+                      onChange={e => setConfirmModal(prev => ({ ...prev, selected: { ...prev.selected, [order.assignmentId]: e.target.checked } }))}
+                      style={{ width: "18px", height: "18px" }}
+                    />
+                    <span style={{ flex: 1 }}>
+                      <strong>{order.item.label}</strong>
+                      <span style={{ display: "block", color: "#64748b", fontSize: "13px" }}>{order.item.quantity} {order.item.unit} · Order #{order.orderId}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button onClick={() => setConfirmModal({ isOpen: false, customer: null, orders: [], selected: {}, loading: false })} style={{ flex: 1, padding: "12px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer" }}>Cancel</button>
+                <button onClick={handleRequestConfirmation} disabled={confirmModal.loading} style={{ flex: 1, padding: "12px", background: "#2e6f40", color: "white", border: "none", borderRadius: "10px", fontWeight: "800", cursor: confirmModal.loading ? "not-allowed" : "pointer" }}>
+                  {confirmModal.loading ? "Sending..." : "Request User Confirmation"}
                 </button>
               </div>
             </div>

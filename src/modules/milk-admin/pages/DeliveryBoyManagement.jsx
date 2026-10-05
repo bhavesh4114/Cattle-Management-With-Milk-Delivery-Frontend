@@ -196,14 +196,14 @@ const DeliveryBoyManagement = () => {
           onClick={async () => {
             try {
               const res = await api.post('/api/delivery/generate-daily-qr');
-              showToast(`Generated QR & OTP for ${res.data.count} deliveries!`);
+              showToast(res.data.message || 'Permanent door QR codes are used for delivery confirmation.');
             } catch (e) {
-              showToast('Failed to generate QRs', 'error');
+              showToast('Failed to check QR setup', 'error');
             }
           }}
-          style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+          style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #0f766e, #14b8a6)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
         >
-          🔐 Generate Daily QR / OTP
+          ▣ Door QR Setup
         </button>
       </div>
 

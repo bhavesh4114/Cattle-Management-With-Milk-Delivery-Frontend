@@ -26,7 +26,7 @@ const UserOrderTracking = ({ onBack }) => {
   const [payMethod, setPayMethod] = useState('ONLINE');
   const [paying, setPaying] = useState(false);
   const [trackModal, setTrackModal] = useState({ open: false, data: null, loading: false });
-  const [deliveryOtpMap, setDeliveryOtpMap] = useState({}); // { 'sub_5': '1234', 'trial_3': '5678' }
+  const [doorQr, setDoorQr] = useState({ loading: true, token: "", user: null });
 
   const showToast = (text, type = 'success') => {
     setToast({ text, type });
@@ -43,23 +43,6 @@ const UserOrderTracking = ({ onBack }) => {
       setPricing(priceRes.data);
       setSubscriptions(subRes.data);
       setTrials(trialRes.data);
-      // Fetch OTPs for any order that might have an active delivery
-      const allOrders = [
-        ...subRes.data.map(s => ({ id: s.id, cat: 'subscription', deliveryStatus: s.deliveryStatus, status: s.status })),
-        ...trialRes.data.map(t => ({ id: t.id, cat: 'trial', deliveryStatus: t.deliveryStatus, status: t.status }))
-      ];
-      // Include any order that is ACTIVE (paid) and has some delivery status (or might have an assignment)
-      const deliveryOrders = allOrders.filter(o => 
-        o.status === 'ACTIVE' && o.deliveryStatus && o.deliveryStatus !== 'Delivered'
-      );
-      if (deliveryOrders.length > 0) {
-        const otpResults = await Promise.allSettled(
-          deliveryOrders.map(o => api.get(`/api/delivery/otp-info?orderType=${o.cat}&orderId=${o.id}`).then(r => ({ key: `${o.cat}_${o.id}`, otp: r.data.otp })).catch(() => null))
-        );
-        const newMap = {};
-        otpResults.forEach(r => { if (r.status === 'fulfilled' && r.value?.otp) newMap[r.value.key] = r.value.otp; });
-        setDeliveryOtpMap(newMap);
-      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -69,9 +52,52 @@ const UserOrderTracking = ({ onBack }) => {
 
   useEffect(() => {
     fetchOrders();
+    fetchDoorQr();
     const interval = setInterval(fetchOrders, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const fetchDoorQr = async () => {
+    try {
+      const adminData = JSON.parse(localStorage.getItem("adminData") || "{}");
+      if (!adminData.id) return setDoorQr({ loading: false, token: "", user: null });
+      const res = await api.get(`/api/users/${adminData.id}/qr`);
+      setDoorQr({ loading: false, token: res.data.qrToken, user: res.data.user });
+    } catch (e) {
+      console.error(e);
+      setDoorQr({ loading: false, token: "", user: null });
+    }
+  };
+
+  const printDoorQr = () => {
+    if (!doorQr.token) return;
+    const customerName = doorQr.user?.name || 'Customer';
+    const html = `
+      <html>
+        <head>
+          <title>Delivery QR</title>
+          <style>
+            body { font-family: Arial, sans-serif; display: flex; justify-content: center; padding: 40px; }
+            .qr-card { width: 360px; border: 2px solid #111827; padding: 28px; text-align: center; }
+            h1 { margin: 0 0 18px; font-size: 26px; letter-spacing: 1px; }
+            p { margin: 12px 0 0; color: #374151; font-size: 15px; }
+            .name { margin-top: 18px; font-weight: 700; color: #111827; }
+          </style>
+        </head>
+        <body>
+          <div class="qr-card">
+            <h1>DELIVERY QR</h1>
+            <div id="qr">${document.getElementById('door-qr-print-source')?.innerHTML || ''}</div>
+            <p>Scan this QR for delivery</p>
+            <div class="name">Customer: ${customerName}</div>
+          </div>
+          <script>window.print(); window.close();</script>
+        </body>
+      </html>`;
+    const printWindow = window.open('', '_blank', 'width=480,height=640');
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
 
   const respondToOffer = async (ids, decision) => {
     try {
@@ -263,6 +289,21 @@ const UserOrderTracking = ({ onBack }) => {
       </div>
 
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '20px 24px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '18px', flexWrap: 'wrap', boxShadow: '0 4px 12px rgba(15,23,42,0.06)' }}>
+          <div>
+            <h2 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '1.15rem' }}>Door Delivery QR</h2>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>Print this once and paste it on your door for secure delivery confirmation.</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div id="door-qr-print-source" style={{ background: 'white', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+              {doorQr.token ? <QRCodeSVG value={doorQr.token} size={96} level="H" /> : <div style={{ width: 96, height: 96, display: 'grid', placeItems: 'center', color: '#94a3b8', fontSize: '12px' }}>{doorQr.loading ? 'Loading' : 'No QR'}</div>}
+            </div>
+            <button onClick={printDoorQr} disabled={!doorQr.token} style={{ padding: '12px 18px', borderRadius: '10px', border: 'none', background: doorQr.token ? '#0f172a' : '#94a3b8', color: 'white', cursor: doorQr.token ? 'pointer' : 'not-allowed', fontWeight: 800 }}>
+              Print QR
+            </button>
+          </div>
+        </div>
+
         {pendingAction.length > 0 && (
           <div style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: 'white', borderRadius: '16px', padding: '20px 28px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 10px 30px rgba(124,58,237,0.3)' }}>
             <span style={{ fontSize: '2rem' }}>🔔</span>
@@ -384,15 +425,10 @@ const UserOrderTracking = ({ onBack }) => {
 
                     {group.status === 'ACTIVE' && group.paymentStatus === 'PAID' && (
                       <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {deliveryOtpMap[`${group.orderCategory}_${group.id}`] && group.deliveryStatus !== 'Delivered' && (
-                          <div style={{ padding: '14px 20px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '14px', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 12px rgba(245,158,11,0.2)' }}>
-                            <div>
-                              <div style={{ fontSize: '11px', color: '#b45309', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>🔐 Your Delivery OTP</div>
-                              <div style={{ fontSize: '12px', color: '#92400e', marginTop: '3px' }}>Share this code when delivery boy arrives at door</div>
-                            </div>
-                            <div style={{ fontSize: '30px', fontWeight: '900', color: '#b45309', letterSpacing: '4px', background: 'white', padding: '8px 16px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                              {deliveryOtpMap[`${group.orderCategory}_${group.id}`]}
-                            </div>
+                        {group.deliveryStatus === 'AWAITING_USER_CONFIRMATION' && (
+                          <div style={{ padding: '14px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '14px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
+                            <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Delivery Confirmation Pending</div>
+                            <div style={{ fontSize: '12px', color: '#115e59', marginTop: '3px' }}>Your door QR was scanned. Confirm from the popup after checking delivered items.</div>
                           </div>
                         )}
                         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -484,17 +520,10 @@ const UserOrderTracking = ({ onBack }) => {
                       </div>
                     </div>
                   )}
-                  {trackModal.data.deliveryOtp && trackModal.data.deliveryStatus !== 'Delivered' && (
-                    <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '16px', border: '2px solid #f59e0b', boxShadow: '0 4px 12px rgba(245,158,11,0.2)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div>
-                          <div style={{ fontSize: '11px', color: '#b45309', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>🔐 Your Delivery OTP</div>
-                          <div style={{ fontSize: '12px', color: '#92400e', marginTop: '4px' }}>Share this 4-digit code with delivery boy at door</div>
-                        </div>
-                        <div style={{ fontSize: '32px', fontWeight: '900', color: '#b45309', letterSpacing: '4px', background: 'white', padding: '8px 16px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                          {trackModal.data.deliveryOtp}
-                        </div>
-                      </div>
+                  {trackModal.data.awaitingUserConfirmation && (
+                    <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '16px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
+                      <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Awaiting Your Confirmation</div>
+                      <div style={{ fontSize: '12px', color: '#115e59', marginTop: '4px' }}>The delivery boy scanned your door QR and selected delivered items. Use the confirmation popup to approve or report an issue.</div>
                     </div>
                   )}
                   <div style={{ position: 'relative' }}>
@@ -512,13 +541,10 @@ const UserOrderTracking = ({ onBack }) => {
                             {isCurrent && <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', marginTop: '2px' }}>● Current Status</div>}
                             {step.note && <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '2px' }}>⏳ {step.note}</div>}
                             {step.deliveryBoyName && step.done && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>👤 {step.deliveryBoyName}</div>}
-                            {step.key === 'out_for_delivery' && isCurrent && trackModal.data.deliveryOtp && (
-                              <div style={{ marginTop: '12px', padding: '10px 14px', background: '#fef3c7', borderRadius: '8px', border: '1px dashed #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div>
-                                  <div style={{ fontSize: '11px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase' }}>Delivery OTP</div>
-                                  <div style={{ fontSize: '10px', color: '#92400e' }}>Share this when delivery boy arrives</div>
-                                </div>
-                                <div style={{ fontSize: '20px', fontWeight: '900', color: '#b45309', letterSpacing: '2px' }}>{trackModal.data.deliveryOtp}</div>
+                            {step.key === 'out_for_delivery' && isCurrent && !trackModal.data.isQrScanned && (
+                              <div style={{ marginTop: '12px', padding: '10px 14px', background: '#ecfeff', borderRadius: '8px', border: '1px dashed #14b8a6' }}>
+                                <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '700', textTransform: 'uppercase' }}>Door QR Required</div>
+                                <div style={{ fontSize: '10px', color: '#115e59' }}>Delivery partner will scan your printed door QR before confirmation.</div>
                               </div>
                             )}
                             {step.timestamp && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{new Date(step.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
