@@ -23,7 +23,7 @@ const MilkSubscriptionsAdmin = () => {
 
     const fetchProducts = async () => {
         try {
-            const res = await api.get('/api/products/active');
+            const res = await api.get('/products/active');
             setPricing(res.data);
         } catch (error) {
             console.error("Error fetching products:", error);
@@ -32,7 +32,7 @@ const MilkSubscriptionsAdmin = () => {
 
     const fetchDeliveryBoys = async () => {
         try {
-            const res = await api.get('/api/milk-module/delivery-boys');
+            const res = await api.get('/milk-module/delivery-boys');
             setDeliveryBoys(res.data);
         } catch (error) {
             console.error("Error fetching delivery boys:", error);
@@ -41,7 +41,7 @@ const MilkSubscriptionsAdmin = () => {
 
     const fetchSubs = async () => {
         try {
-            const res = await api.get('/api/milk-module/subscription/all-subscriptions');
+            const res = await api.get('/milk-module/subscription/all-subscriptions');
             setSubs(res.data);
             setLoading(false);
         } catch (error) {
@@ -52,7 +52,7 @@ const MilkSubscriptionsAdmin = () => {
 
     const handleAssignDelivery = async (subId, boyId) => {
         try {
-            await api.post(`/api/milk-module/assign-delivery/sub/${subId}`, { deliveryBoyId: boyId });
+            await api.post(`/milk-module/assign-delivery/sub/${subId}`, { deliveryBoyId: boyId });
             showToast("Delivery Boy Assigned!", "success");
             fetchSubs();
             setViewModal({ ...viewModal, data: { ...viewModal.data, deliveryBoyId: boyId, deliveryStatus: 'Assigned' } });
@@ -65,7 +65,7 @@ const MilkSubscriptionsAdmin = () => {
         try {
             const payload = { action, ...(dates || {}) };
             for (let subId of ids) {
-                await api.post(`/api/milk-module/subscription/${subId}/admin-offer`, payload);
+                await api.post(`/milk-module/subscription/${subId}/admin-offer`, payload);
             }
             showToast(`Subscriptions updated`);
             setProposeModal({ isOpen: false, ids: null, startDate: '', endDate: '' });

@@ -8,7 +8,7 @@ const AlertPopup = () => {
     useEffect(() => {
         const fetchAlerts = async () => {
             try {
-                const res = await api.get('/api/alerts/my-alerts');
+                const res = await api.get('/alerts/my-alerts');
                 if (res.data && res.data.length > 0) {
                     setAlert(res.data[0]);
                 }
@@ -25,11 +25,11 @@ const AlertPopup = () => {
     const handleDismiss = async () => {
         if (!alert) return;
         try {
-            await api.put(`/api/alerts/${alert.id}/read`);
+            await api.put(`/alerts/${alert.id}/read`);
             setAlert(null);
             // Wait a moment and check for next alert
             setTimeout(async () => {
-                const res = await api.get('/api/alerts/my-alerts');
+                const res = await api.get('/alerts/my-alerts');
                 if (res.data && res.data.length > 0) {
                     setAlert(res.data[0]);
                 }
@@ -44,14 +44,14 @@ const AlertPopup = () => {
         setWorking(true);
         try {
             if (action === 'confirm') {
-                await api.post(`/api/delivery/${alert.orderId}/confirm`, { orderType: alert.orderType });
+                await api.post(`/delivery/${alert.orderId}/confirm`, { orderType: alert.orderType });
             } else {
-                await api.post(`/api/delivery/${alert.orderId}/report-issue`, {
+                await api.post(`/delivery/${alert.orderId}/report-issue`, {
                     orderType: alert.orderType,
                     issue: 'Customer reported an issue from the delivery confirmation popup.'
                 });
             }
-            await api.put(`/api/alerts/${alert.id}/read`);
+            await api.put(`/alerts/${alert.id}/read`);
             setAlert(null);
         } catch (e) {
             console.error('Delivery confirmation failed', e);

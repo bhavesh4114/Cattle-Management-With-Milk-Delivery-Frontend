@@ -52,7 +52,7 @@ export default function Report() {
 
     // Fetch cows on mount
     useEffect(() => {
-        api.get("/api/admin/cows")
+        api.get("/admin/cows")
             .then(res => setCows(res.data.map(c => c.name || c.tagNo)))
             .catch(err => console.error("Failed to load cows", err));
     }, []);
@@ -82,7 +82,7 @@ export default function Report() {
             queryParams.append("cowId", selectedCow);
         }
         
-        const res = await api.get(`/api/admin/reports?${queryParams.toString()}`);
+        const res = await api.get(`/admin/reports?${queryParams.toString()}`);
         let data = res.data;
         
         // Fix for reports where backend sends headers in the first row instead of columns

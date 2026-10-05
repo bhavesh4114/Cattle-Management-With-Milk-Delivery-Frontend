@@ -43,7 +43,7 @@ const MyDeliveries = () => {
   const fetchDeliveries = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/delivery/my-deliveries");
+      const res = await api.get("/delivery/my-deliveries");
       setDeliveries(res.data);
     } catch (e) {
       console.error(e);
@@ -54,13 +54,13 @@ const MyDeliveries = () => {
 
   const fetchMyProfile = async () => {
     try {
-      const res = await api.get("/api/delivery/boys/my-profile");
+      const res = await api.get("/delivery/boys/my-profile");
       const prof = res.data.profile;
       setProfile(prof);
       // Fetch today's actual availability
       const today = new Date().toISOString().split('T')[0];
       try {
-        const availRes = await api.get(`/api/delivery/boys/my-availability?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`);
+        const availRes = await api.get(`/delivery/boys/my-availability?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`);
         const todayRecord = availRes.data?.[0];
         setTodayStatus(todayRecord?.status || prof?.dailyStatus || 'Available');
       } catch {
@@ -72,7 +72,7 @@ const MyDeliveries = () => {
   const handleUpdateStatus = async (assignmentIds, newStatus, notes) => {
     try {
       await Promise.all(assignmentIds.map(id => 
-        api.put(`/api/delivery/status/${id}`, { deliveryStatus: newStatus, notes: notes || undefined })
+        api.put(`/delivery/status/${id}`, { deliveryStatus: newStatus, notes: notes || undefined })
       ));
       showToast(`Status updated to ${newStatus}`);
       fetchDeliveries();
@@ -84,10 +84,11 @@ const MyDeliveries = () => {
     }
   };
 
-  const handleScanQr = async () => {
+  const handleScanQr = async (tokenOverride) => {
     try {
       setQrModal(prev => ({ ...prev, loading: true, error: "" }));
-      const res = await api.post('/api/delivery/scan-qr', { qrToken: qrModal.token.trim() });
+      const token = (tokenOverride || qrModal.token).trim();
+      const res = await api.post('/delivery/scan-qr', { qrToken: token });
       const selected = {};
       res.data.orders.forEach(order => { selected[order.assignmentId] = true; });
       setQrModal({ isOpen: false, token: "", loading: false, error: "" });
@@ -116,8 +117,12 @@ const MyDeliveries = () => {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
       stream.getTracks().forEach(track => track.stop());
-      if (found) setQrModal(prev => ({ ...prev, token: found }));
-      else showToast('QR not detected. Try again or paste the token.', 'error');
+      if (found) {
+        setQrModal(prev => ({ ...prev, token: found }));
+        handleScanQr(found);
+      } else {
+        showToast('QR not detected. Try again or paste the token.', 'error');
+      }
     } catch (e) {
       showToast('Camera permission failed. Paste the QR token instead.', 'error');
     }
@@ -129,7 +134,7 @@ const MyDeliveries = () => {
     setConfirmModal(prev => ({ ...prev, loading: true }));
     try {
       await Promise.all(selectedOrders.map(order =>
-        api.post(`/api/delivery/${order.orderId}/request-confirmation`, {
+        api.post(`/delivery/${order.orderId}/request-confirmation`, {
           orderType: order.orderType,
           itemIds: [order.assignmentId]
         })
@@ -145,7 +150,7 @@ const MyDeliveries = () => {
 
   const handleSetAvailability = async () => {
     try {
-      await api.post("/api/delivery/boys/my-availability", availForm);
+      await api.post("/delivery/boys/my-availability", availForm);
       showToast(`Availability set to ${availForm.status} for ${availForm.date}`);
       setAvailModal({ isOpen: false });
       // If setting today's date, update display immediately
@@ -401,7 +406,7 @@ const MyDeliveries = () => {
             <div style={{ background: "linear-gradient(135deg, #0f766e, #14b8a6)", padding: "20px 24px", color: "white", textAlign: "center" }}>
               <div style={{ fontSize: "36px", marginBottom: "8px" }}>▣</div>
               <h3 style={{ margin: 0, fontWeight: "800", fontSize: "18px" }}>Scan Door QR</h3>
-              <p style={{ margin: "4px 0 0", fontSize: "13px", opacity: 0.9 }}>Scan or paste the customer's permanent QR token</p>
+              <p style={{ margin: "4px 0 0", fontSize: "13px", opacity: 0.9 }}>Scan the user's QR or paste their delivery token</p>
             </div>
             <div style={{ padding: "24px", textAlign: "center" }}>
               <button onClick={handleCameraScan} style={{ width: "100%", padding: "12px", background: "#ecfeff", color: "#0f766e", border: "1px solid #99f6e4", borderRadius: "10px", fontWeight: "800", cursor: "pointer", marginBottom: "14px" }}>
@@ -417,7 +422,7 @@ const MyDeliveries = () => {
               {qrModal.error && <div style={{ marginTop: "10px", color: "#dc2626", fontSize: "13px", fontWeight: "600" }}>{qrModal.error}</div>}
               <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
                 <button onClick={() => setQrModal({ isOpen: false, token: "", loading: false, error: "" })} style={{ flex: 1, padding: "14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer" }}>Cancel</button>
-                <button onClick={handleScanQr} disabled={!qrModal.token.trim() || qrModal.loading} style={{ flex: 1, padding: "14px", background: qrModal.token.trim() ? "#10b981" : "#94a3b8", color: "white", border: "none", borderRadius: "10px", fontWeight: "800", cursor: qrModal.token.trim() ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
+                <button onClick={() => handleScanQr()} disabled={!qrModal.token.trim() || qrModal.loading} style={{ flex: 1, padding: "14px", background: qrModal.token.trim() ? "#10b981" : "#94a3b8", color: "white", border: "none", borderRadius: "10px", fontWeight: "800", cursor: qrModal.token.trim() ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
                   {qrModal.loading ? 'Checking...' : 'Validate QR'}
                 </button>
               </div>
@@ -432,7 +437,7 @@ const MyDeliveries = () => {
           <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "460px", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.25)" }}>
             <div style={{ background: "#f8fafc", padding: "20px 24px", borderBottom: "1px solid #e2e8f0" }}>
               <h3 style={{ margin: 0, color: "#1e293b" }}>Select Delivered Items</h3>
-              <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: "14px" }}>Customer: <strong>{confirmModal.customer?.name}</strong></p>
+              <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: "14px" }}>Customer: <strong>{confirmModal.customer?.name}</strong>. Choose the product you are delivering now.</p>
             </div>
             <div style={{ padding: "24px" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
@@ -454,7 +459,7 @@ const MyDeliveries = () => {
               <div style={{ display: "flex", gap: "12px" }}>
                 <button onClick={() => setConfirmModal({ isOpen: false, customer: null, orders: [], selected: {}, loading: false })} style={{ flex: 1, padding: "12px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer" }}>Cancel</button>
                 <button onClick={handleRequestConfirmation} disabled={confirmModal.loading} style={{ flex: 1, padding: "12px", background: "#2e6f40", color: "white", border: "none", borderRadius: "10px", fontWeight: "800", cursor: confirmModal.loading ? "not-allowed" : "pointer" }}>
-                  {confirmModal.loading ? "Sending..." : "Request User Confirmation"}
+                  {confirmModal.loading ? "Sending..." : "Send to User for Confirm"}
                 </button>
               </div>
             </div>

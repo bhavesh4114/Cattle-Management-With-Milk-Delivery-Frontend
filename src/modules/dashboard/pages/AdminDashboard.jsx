@@ -356,9 +356,9 @@ const FarmAlertsModal = ({ onClose, navigate, cows = [] }) => {
       const yesterdayStr = yesterday.toISOString().split("T")[0];
 
       const [cowsRes, todayRes, yestRes] = await Promise.all([
-        api.get("/api/admin/cows"),
-        api.get(`/api/admin/milk/daily?date=${todayStr}`),
-        api.get(`/api/admin/milk/daily?date=${yesterdayStr}`),
+        api.get("/admin/cows"),
+        api.get(`/admin/milk/daily?date=${todayStr}`),
+        api.get(`/admin/milk/daily?date=${yesterdayStr}`),
       ]);
 
       const activeCows = (cowsRes.data || []).filter(c => c.status === "Active" && c.isActiveForMilk);
@@ -983,13 +983,13 @@ const AdminDashboard = () => {
 
   const loadDashboard = async () => {
     try {
-      const dashboardRes = await api.get("/api/admin/dashboard");
+      const dashboardRes = await api.get("/admin/dashboard");
       setDashboard(dashboardRes.data);
     } catch (err) {
       console.warn("Could not fetch dashboard stats", err);
     }
     try {
-      const cowRes = await api.get("/api/admin/cows");
+      const cowRes = await api.get("/admin/cows");
       setCows(cowRes.data);
     } catch (err) {
       console.warn("Could not fetch cows", err);
@@ -1009,13 +1009,13 @@ const AdminDashboard = () => {
 
     const fetchProfile = async () => {
       try {
-        const res = await api.get("/api/admin/auth/profile");
+        const res = await api.get("/admin/auth/profile");
         if (res.data && res.data.admin) {
           localStorage.setItem("adminData", JSON.stringify(res.data.admin));
           setAdminData(res.data.admin);
 
           const roleName = res.data.admin?.customRole?.name?.toLowerCase() || "";
-          if (roleName.includes("delivery") || roleName.includes("milk")) {
+          if (roleName.includes("delivery") || roleName.includes("delever") || roleName.includes("milk") || res.data.admin?.permissions?.some(p => String(p).toLowerCase().includes("deliver"))) {
             navigate("/milk-admin/dashboard");
             return;
           }
@@ -1123,7 +1123,8 @@ const AdminDashboard = () => {
               return adminData?.role === "ADMIN";
             }
             if (section.key === "my-deliveries") {
-              return hasPermission(adminData, "my-deliveries", "view") || adminData?.customRole?.name?.toLowerCase().includes("delivery");
+              const rn = (adminData?.customRole?.name || "").toLowerCase();
+              return hasPermission(adminData, "my-deliveries", "view") || rn.includes("delivery") || rn.includes("delever");
             }
             if (section.key === "delivery-boys") {
               return adminData?.role === "ADMIN";
@@ -1214,7 +1215,8 @@ const AdminDashboard = () => {
             } else if (requiredPermission === "dashboard") {
               hasAccess = true;
             } else if (requiredPermission === "my-deliveries") {
-              hasAccess = hasPermission(adminData, "my-deliveries", "view") || adminData?.customRole?.name?.toLowerCase().includes("delivery");
+              const rn = (adminData?.customRole?.name || "").toLowerCase();
+              hasAccess = hasPermission(adminData, "my-deliveries", "view") || rn.includes("delivery") || rn.includes("delever");
             } else if (requiredPermission === "products") {
               const isUser = adminData?.role === "CUSTOM" && (adminData?.name?.toLowerCase().includes("user") || adminData?.customRole?.name?.toLowerCase().includes("user"));
               hasAccess = isUser ? true : hasPermission(adminData, requiredPermission, "view");

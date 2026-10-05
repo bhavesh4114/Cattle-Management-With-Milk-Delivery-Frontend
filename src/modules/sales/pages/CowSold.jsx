@@ -18,7 +18,7 @@ const CowSold = () => {
 
   const loadSales = async () => {
     try {
-      const res = await api.get("/api/admin/sold-cows");
+      const res = await api.get("/admin/sold-cows");
       setSales(res.data);
     } catch (e) {
       console.error(e);
@@ -33,7 +33,7 @@ const CowSold = () => {
     const isConfirmed = await confirm("Are you sure you want to delete this sale record? The animal will be marked as Active again.");
     if (!isConfirmed) return;
     try {
-      await api.delete(`/api/admin/sold-cows/${saleId}`);
+      await api.delete(`/admin/sold-cows/${saleId}`);
       loadSales();
     } catch (error) {
       console.error("Failed to delete sale", error);

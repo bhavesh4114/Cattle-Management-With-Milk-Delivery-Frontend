@@ -44,7 +44,7 @@ const CowDeath = ({ onChanged }) => {
 
   const loadDeaths = async () => {
     try {
-      const res = await api.get("/api/admin/deaths");
+      const res = await api.get("/admin/deaths");
       setDeaths(res.data);
     } catch (e) {
       console.error(e);
@@ -53,7 +53,7 @@ const CowDeath = ({ onChanged }) => {
 
   const loadCows = async () => {
     try {
-      const res = await api.get("/api/admin/cows");
+      const res = await api.get("/admin/cows");
       setCows(res.data.filter(c => c.status === "Active"));
     } catch (e) {
       console.error(e);
@@ -158,7 +158,7 @@ const CowDeath = ({ onChanged }) => {
     }
 
     try {
-      await api.post("/api/admin/deaths", {
+      await api.post("/admin/deaths", {
         cowId: selectedCowId,
         reason: form.reason,
         deathAt: form.deathAt,
@@ -170,7 +170,7 @@ const CowDeath = ({ onChanged }) => {
       
       const cow = cows.find(c => c.id === Number(selectedCowId));
       if (cow) {
-        await api.put(`/api/admin/cows/${cow.id}`, {
+        await api.put(`/admin/cows/${cow.id}`, {
           ...cow,
           status: "Dead"
         });
@@ -190,7 +190,7 @@ const CowDeath = ({ onChanged }) => {
     const isConfirmed = await confirm("Are you sure you want to delete this death record?");
     if(!isConfirmed) return;
     try {
-      await api.delete(`/api/admin/deaths/${d.id}`);
+      await api.delete(`/admin/deaths/${d.id}`);
       await loadDeaths();
       await fetchCows();
       showToast("Death record deleted successfully");

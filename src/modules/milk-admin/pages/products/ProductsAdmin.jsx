@@ -69,7 +69,7 @@ const ProductsAdmin = () => {
 
     const fetchProducts = async () => {
         try {
-            const res = await api.get('/api/products');
+            const res = await api.get('/products');
             setProducts(res.data);
             setLoading(false);
         } catch (error) {
@@ -82,10 +82,10 @@ const ProductsAdmin = () => {
         e.preventDefault();
         try {
             if (editingId) {
-                await api.put(`/api/products/${editingId}`, form);
+                await api.put(`/products/${editingId}`, form);
                 showToast('Product updated successfully');
             } else {
-                await api.post('/api/products', form);
+                await api.post('/products', form);
                 showToast('Product created successfully');
             }
             setForm({ name: '', image: '', price: '', description: '', size: '', unit: 'L', isActive: true });
@@ -115,7 +115,7 @@ const ProductsAdmin = () => {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this product?")) return;
         try {
-            await api.delete(`/api/products/${id}`);
+            await api.delete(`/products/${id}`);
             showToast('Product deleted successfully');
             fetchProducts();
         } catch (error) {

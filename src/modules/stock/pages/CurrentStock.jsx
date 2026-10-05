@@ -28,7 +28,7 @@ const CurrentStock = () => {
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/admin/items");
+      const res = await api.get("/admin/items");
       setItems(Array.isArray(res.data) ? res.data : res.data?.items || []);
     } catch (err) {
       console.error("Error fetching items:", err);
@@ -46,7 +46,7 @@ const CurrentStock = () => {
     setHistoryLoading(true);
     setHistoryData([]);
     try {
-      const res = await api.get(`/api/admin/stock-adjustments?itemId=${item.id}`);
+      const res = await api.get(`/admin/stock-adjustments?itemId=${item.id}`);
       setHistoryData(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Error fetching history:", err);

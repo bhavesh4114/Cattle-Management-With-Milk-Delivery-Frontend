@@ -38,9 +38,9 @@ const UserMilkOrder = () => {
   const fetchData = async () => {
     try {
       const [priceRes, subRes, trialRes] = await Promise.all([
-        api.get('/api/milk-module/pricing/price-list').catch(() => ({ data: [] })),
-        api.get('/api/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
-        api.get('/api/milk-module/trial/my-trials').catch(() => ({ data: [] }))
+        api.get('/milk-module/pricing/price-list').catch(() => ({ data: [] })),
+        api.get('/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
+        api.get('/milk-module/trial/my-trials').catch(() => ({ data: [] }))
       ]);
       setPricing(priceRes.data);
       setSubscriptions(subRes.data);
@@ -64,10 +64,10 @@ const UserMilkOrder = () => {
     setLoading(true);
     try {
       if (orderType === 'Trial') {
-        await api.post('/api/milk-module/trial/submit-request', form);
+        await api.post('/milk-module/trial/submit-request', form);
         showToast('Trial request sent successfully!');
       } else {
-        await api.post('/api/milk-module/subscription/submit-request', form);
+        await api.post('/milk-module/subscription/submit-request', form);
         showToast('Monthly subscription request sent!');
       }
       setForm({
@@ -98,9 +98,9 @@ const UserMilkOrder = () => {
     const { id, type } = deleteModal;
     try {
       if (type === 'trial') {
-        await api.delete(`/api/milk-module/trial/${id}`);
+        await api.delete(`/milk-module/trial/${id}`);
       } else {
-        await api.delete(`/api/milk-module/subscription/${id}`);
+        await api.delete(`/milk-module/subscription/${id}`);
       }
       showToast(`${type} deleted successfully!`);
       setDeleteModal({ isOpen: false, id: null, type: '' });
@@ -116,9 +116,9 @@ const UserMilkOrder = () => {
     try {
       const { id, type, customerName, dailyQuantity, milkType, address, phone, requestedStartDate, requestedEndDate, startDate, endDate, notes } = editModal.data;
       if (type === 'trial') {
-        await api.put(`/api/milk-module/trial/${id}`, { customerName, dailyQuantity, milkType, address, phone, startDate, endDate, notes });
+        await api.put(`/milk-module/trial/${id}`, { customerName, dailyQuantity, milkType, address, phone, startDate, endDate, notes });
       } else {
-        await api.put(`/api/milk-module/subscription/${id}`, { customerName, dailyQuantity, milkType, address, phone, requestedStartDate, requestedEndDate, notes });
+        await api.put(`/milk-module/subscription/${id}`, { customerName, dailyQuantity, milkType, address, phone, requestedStartDate, requestedEndDate, notes });
       }
       showToast(`${type} updated successfully!`);
       setEditModal({ isOpen: false, data: null, type: '' });
@@ -131,7 +131,7 @@ const UserMilkOrder = () => {
 
   const respondToOffer = async (id, decision) => {
     try {
-      await api.post(`/api/milk-module/subscription/${id}/user-respond`, { decision });
+      await api.post(`/milk-module/subscription/${id}/user-respond`, { decision });
       showToast(`Offer ${decision.toLowerCase()}ed`);
       fetchData();
     } catch (e) {
@@ -142,10 +142,10 @@ const UserMilkOrder = () => {
 
   const processPayment = async (id, method) => {
     try {
-      const res = await api.post(`/api/milk-module/subscription/${id}/pay`, { method });
+      const res = await api.post(`/milk-module/subscription/${id}/pay`, { method });
       if (method === 'ONLINE') {
         // Mock Online Payment verification
-        await api.post('/api/milk-module/subscription/verify-payment', {
+        await api.post('/milk-module/subscription/verify-payment', {
           subscriptionId: id,
           transactionId: 'TXN' + Date.now(),
           status: 'SUCCESS'
@@ -176,7 +176,7 @@ const UserMilkOrder = () => {
   const openTrackOrder = async (id, orderType) => {
     setTrackModal({ isOpen: true, data: null, loading: true });
     try {
-      const res = await api.get(`/api/delivery/track/${orderType}/${id}`);
+      const res = await api.get(`/delivery/track/${orderType}/${id}`);
       setTrackModal({ isOpen: true, data: res.data, loading: false });
     } catch (e) {
       console.error(e);

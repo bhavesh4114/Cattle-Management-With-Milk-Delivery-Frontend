@@ -28,7 +28,7 @@ const StaffMilkReportEntry = () => {
 
     const fetchTotalMilk = async () => {
         try {
-            const res = await api.get('/api/staff-milk/today-total');
+            const res = await api.get('/staff-milk/today-total');
             setTotalReceived(parseFloat(res.data.total) || 0);
             setDate(res.data.date);
             setLoading(false);
@@ -40,7 +40,7 @@ const StaffMilkReportEntry = () => {
 
     const fetchMyReports = async () => {
         try {
-            const res = await api.get('/api/staff-milk/my-reports');
+            const res = await api.get('/staff-milk/my-reports');
             setMyReports(res.data);
         } catch (err) {
             console.error("Error fetching my reports:", err);
@@ -165,7 +165,7 @@ const StaffMilkReportEntry = () => {
 
         setSubmitting(true);
         try {
-            await api.post('/api/staff-milk/submit-report', {
+            await api.post('/staff-milk/submit-report', {
                 receivedQty: totalReceived,
                 totalUsedQty: formUsedQty,
                 remainingQty: remainingMilk,

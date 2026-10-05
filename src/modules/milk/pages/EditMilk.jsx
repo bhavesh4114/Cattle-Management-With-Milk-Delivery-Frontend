@@ -20,7 +20,7 @@ const EditMilk = () => {
   useEffect(() => {
     const fetchRecord = async () => {
       try {
-        const res = await api.get(`/api/admin/milk/${recordId}`);
+        const res = await api.get(`/admin/milk/${recordId}`);
         setRecord(res.data);
         setMorningMilk(res.data.morningMilk != null ? String(res.data.morningMilk) : "");
         setEveningMilk(res.data.eveningMilk != null ? String(res.data.eveningMilk) : "");
@@ -36,7 +36,7 @@ const EditMilk = () => {
   const handleUpdate = async () => {
     setSaving(true);
     try {
-      await api.put(`/api/admin/milk/${recordId}`, {
+      await api.put(`/admin/milk/${recordId}`, {
         morningMilk: morningMilk || "0",
         eveningMilk: eveningMilk || "0"
       });

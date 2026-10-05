@@ -103,7 +103,7 @@ const ManageCows = ({ onChanged }) => {
   const viewId = viewMatch ? parseInt(viewMatch[1], 10) : null;
 
   const loadCows = async () => {
-    const res = await api.get("/api/admin/cows");
+    const res = await api.get("/admin/cows");
     let nextCows = Array.isArray(res.data)
       ? res.data
       : res.data?.cows || res.data?.animals || res.data?.data || [];
@@ -148,7 +148,7 @@ const ManageCows = ({ onChanged }) => {
 
   const fetchNextRegNo = async () => {
     try {
-      const res = await api.get("/api/admin/cows/next-reg-no");
+      const res = await api.get("/admin/cows/next-reg-no");
       if (res.data?.nextRegNo) {
         setCattleForm((prev) => ({ ...prev, regNo: res.data.nextRegNo }));
       }
@@ -226,13 +226,13 @@ const ManageCows = ({ onChanged }) => {
 
     try {
       const cowRes = editingCowId
-        ? await api.put(`/api/admin/cows/${editingCowId}`, cattleForm)
-        : await api.post("/api/admin/cows", cattleForm);
+        ? await api.put(`/admin/cows/${editingCowId}`, cattleForm)
+        : await api.post("/admin/cows", cattleForm);
 
       if (!editingCowId && pendingReproductionForms.length > 0) {
         const newCowId = cowRes.data.id;
         for (const pendingForm of pendingReproductionForms) {
-          await api.post(`/api/admin/cows/${newCowId}/reproduction`, {
+          await api.post(`/admin/cows/${newCowId}/reproduction`, {
             ...pendingForm,
             cowId: newCowId,
           });
@@ -290,7 +290,7 @@ const ManageCows = ({ onChanged }) => {
     setMessage("");
 
     try {
-      await api.delete(`/api/admin/cows/${cow.id}`);
+      await api.delete(`/admin/cows/${cow.id}`);
       await loadCows();
       await onChanged?.();
       setMessage("Cattle record deleted");
@@ -385,7 +385,7 @@ const ManageCows = ({ onChanged }) => {
     const isConfirmed = await confirm("Are you sure you want to delete this reproduction record?");
     if (!isConfirmed) return;
     try {
-      await api.delete(`/api/admin/cows/${cowId}/reproduction/${recordId}`);
+      await api.delete(`/admin/cows/${cowId}/reproduction/${recordId}`);
       await loadCows();
       await onChanged?.();
       setMessage("Reproduction record deleted");
@@ -424,9 +424,9 @@ const ManageCows = ({ onChanged }) => {
 
     try {
       if (reproductionForm.id) {
-        await api.put(`/api/admin/cows/${cowId}/reproduction/${reproductionForm.id}`, reproductionForm);
+        await api.put(`/admin/cows/${cowId}/reproduction/${reproductionForm.id}`, reproductionForm);
       } else {
-        await api.post(`/api/admin/cows/${cowId}/reproduction`, reproductionForm);
+        await api.post(`/admin/cows/${cowId}/reproduction`, reproductionForm);
       }
       setSelectedCow(null);
       setShowReproductionModal(false);

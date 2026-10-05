@@ -13,7 +13,7 @@ const CowHistory = () => {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await api.get(`/api/admin/cows/${id}/history`);
+        const res = await api.get(`/admin/cows/${id}/history`);
         setCow(res.data);
       } catch (err) {
         setError("Failed to load history data.");

@@ -57,7 +57,7 @@ const CowTreatment = ({ prefillData, onChanged }) => {
     setListLoading(true);
     setListError("");
     try {
-      const res = await api.get("/api/admin/treatments");
+      const res = await api.get("/admin/treatments");
       setTreatments(res.data || []);
     } catch {
       setListError("Failed to load treatment records.");
@@ -69,7 +69,7 @@ const CowTreatment = ({ prefillData, onChanged }) => {
   // ── load cows ──────────────────────────────────────────────────
   const loadCows = async () => {
     try {
-      const res = await api.get("/api/admin/cows");
+      const res = await api.get("/admin/cows");
       setCows((res.data || []).filter((c) => c.status === "Active"));
     } catch {
       /* ignore */
@@ -154,7 +154,7 @@ const CowTreatment = ({ prefillData, onChanged }) => {
     const isConfirmed = await confirm(`Delete treatment for "${t.cow?.name || "this cow"}"?`);
     if (!isConfirmed) return;
     try {
-      await api.delete(`/api/admin/treatments/${t.id}`);
+      await api.delete(`/admin/treatments/${t.id}`);
       await loadTreatments();
       if (onChanged) onChanged();
     } catch {
@@ -198,10 +198,10 @@ const CowTreatment = ({ prefillData, onChanged }) => {
 
     try {
       if (editId) {
-        await api.put(`/api/admin/treatments/${editId}`, payload);
+        await api.put(`/admin/treatments/${editId}`, payload);
         setFormMsg({ text: "✅ Treatment updated successfully.", ok: true });
       } else {
-        await api.post("/api/admin/treatments", payload);
+        await api.post("/admin/treatments", payload);
         setFormMsg({ text: "✅ Treatment saved successfully.", ok: true });
       }
       await loadTreatments();

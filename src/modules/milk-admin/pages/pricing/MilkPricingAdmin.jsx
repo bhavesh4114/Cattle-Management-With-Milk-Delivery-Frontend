@@ -18,7 +18,7 @@ const MilkPricingAdmin = () => {
 
     const fetchPrices = async () => {
         try {
-            const res = await api.get('/api/milk-module/pricing/price-list');
+            const res = await api.get('/milk-module/pricing/price-list');
             setPrices(res.data);
             setLoading(false);
         } catch (error) {
@@ -30,7 +30,7 @@ const MilkPricingAdmin = () => {
     const handleUpdate = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/api/milk-module/pricing/update', {
+            await api.post('/milk-module/pricing/update', {
                 milkType: form.milkType,
                 pricePerLitre: parseFloat(form.pricePerLitre)
             });

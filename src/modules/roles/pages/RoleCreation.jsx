@@ -59,8 +59,8 @@ const RoleCreation = () => {
     setLoading(true);
     try {
       const [rolesRes, usersRes] = await Promise.all([
-        api.get("/api/admin/roles"),
-        api.get("/api/admin/roles/users")
+        api.get("/admin/roles"),
+        api.get("/admin/roles/users")
       ]);
       setRoles(rolesRes.data || []);
       setUsers(usersRes.data || []);
@@ -160,7 +160,7 @@ const RoleCreation = () => {
 
     if (formMode === "edit_role") {
       try {
-        await api.put(`/api/admin/roles/${editingRoleId}`, {
+        await api.put(`/admin/roles/${editingRoleId}`, {
           name: formData.newRoleName,
           status: formData.status,
           permissions: formData.permissions
@@ -191,7 +191,7 @@ const RoleCreation = () => {
 
       // 1. Create role if needed
       if (formMode === "create" && formData.customRoleId === "CREATE_NEW") {
-        const roleRes = await api.post("/api/admin/roles", {
+        const roleRes = await api.post("/admin/roles", {
           name: formData.newRoleName,
           status: "Active",
           permissions: formData.permissions
@@ -200,7 +200,7 @@ const RoleCreation = () => {
       } else if (roleIdToUse && roleIdToUse !== "CREATE_NEW") {
         // Update the existing role's permissions just in case they modified them while creating/editing user
         try {
-          await api.put(`/api/admin/roles/${roleIdToUse}`, {
+          await api.put(`/admin/roles/${roleIdToUse}`, {
             permissions: formData.permissions
           });
         } catch (e) {
@@ -221,10 +221,10 @@ const RoleCreation = () => {
       }
 
       if (formMode === "edit_user") {
-        await api.put(`/api/admin/roles/users/${editingUserId}`, payload);
+        await api.put(`/admin/roles/users/${editingUserId}`, payload);
         customAlert("User updated successfully");
       } else {
-        await api.post("/api/admin/roles/users", payload);
+        await api.post("/admin/roles/users", payload);
         customAlert("User and Role created successfully");
       }
 
@@ -239,7 +239,7 @@ const RoleCreation = () => {
     const isConfirmed = await confirm(`Are you sure you want to delete user '${name}'?`);
     if (isConfirmed) {
       try {
-        await api.delete(`/api/admin/roles/users/${id}`);
+        await api.delete(`/admin/roles/users/${id}`);
         fetchData();
       } catch (error) {
         customAlert("Failed to delete user");
@@ -251,7 +251,7 @@ const RoleCreation = () => {
     const isConfirmed = await confirm(`Are you sure you want to delete the role '${name}'? This will also delete all associated users.`);
     if (isConfirmed) {
       try {
-        await api.delete(`/api/admin/roles/${id}`);
+        await api.delete(`/admin/roles/${id}`);
         fetchData();
       } catch (error) {
         customAlert("Failed to delete role");
@@ -262,7 +262,7 @@ const RoleCreation = () => {
   const handleToggleUserStatus = async (user) => {
     const newStatus = user.status === "Active" ? "Inactive" : "Active";
     try {
-      await api.put(`/api/admin/roles/users/${user.id}`, { status: newStatus });
+      await api.put(`/admin/roles/users/${user.id}`, { status: newStatus });
       fetchData();
     } catch (error) {
       customAlert(`Failed to ${newStatus === "Active" ? "activate" : "deactivate"} user`);

@@ -31,7 +31,7 @@ const DeliveryAssignmentPanel = ({ orderType, orderId, currentDeliveryBoyId, onA
   const fetchSuggestions = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/api/delivery/suggest/${orderType}/${orderId}`);
+      const res = await api.get(`/delivery/suggest/${orderType}/${orderId}`);
       setData(res.data);
     } catch (e) {
       console.error(e);
@@ -42,21 +42,21 @@ const DeliveryAssignmentPanel = ({ orderType, orderId, currentDeliveryBoyId, onA
 
   const fetchHistory = async () => {
     try {
-      const res = await api.get(`/api/delivery/history/${orderType}/${orderId}`);
+      const res = await api.get(`/delivery/history/${orderType}/${orderId}`);
       setHistory(res.data);
     } catch (e) {}
   };
 
   const fetchAllBoys = async () => {
     try {
-      const res = await api.get("/api/delivery/boys");
+      const res = await api.get("/delivery/boys");
       setAllBoys(res.data);
     } catch (e) {}
   };
 
   const doAssign = async (boyId, force = false) => {
     try {
-      const res = await api.post(`/api/delivery/assign/${orderType}/${orderId}`, {
+      const res = await api.post(`/delivery/assign/${orderType}/${orderId}`, {
         deliveryBoyId: boyId,
         notes: reassignNotes || undefined,
         forceAssign: force,

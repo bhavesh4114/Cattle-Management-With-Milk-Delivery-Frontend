@@ -20,7 +20,7 @@ const StockAdjustments = () => {
       if (filters.startDate) query.append("startDate", filters.startDate);
       if (filters.endDate) query.append("endDate", filters.endDate);
       
-      const res = await api.get(`/api/admin/stock-adjustments?${query.toString()}`);
+      const res = await api.get(`/admin/stock-adjustments?${query.toString()}`);
       setAdjustments(res.data.adjustments);
       setSummary(res.data.summary);
     } catch (error) {

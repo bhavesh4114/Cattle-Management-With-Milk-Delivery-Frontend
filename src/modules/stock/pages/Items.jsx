@@ -71,7 +71,7 @@ const Items = ({ onChanged }) => {
     if (!tempQuantity || isNaN(tempQuantity) || Number(tempQuantity) <= 0) return;
     try {
       const newStock = Number(selectedItemForQty.currentStock) + Number(tempQuantity);
-      await api.put(`/api/admin/items/${selectedItemForQty.id}`, {
+      await api.put(`/admin/items/${selectedItemForQty.id}`, {
         name: selectedItemForQty.name,
         unit: selectedItemForQty.unit,
         price: selectedItemForQty.price,
@@ -102,7 +102,7 @@ const Items = ({ onChanged }) => {
   const loadItems = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/admin/items");
+      const res = await api.get("/admin/items");
       setItems(res.data);
     } catch {
       showToast("Failed to load items.", "error");
@@ -125,10 +125,10 @@ const Items = ({ onChanged }) => {
     setSaving(true);
     try {
       if (editingId) {
-        await api.put(`/api/admin/items/${editingId}`, formData);
+        await api.put(`/admin/items/${editingId}`, formData);
         showToast("✅ Item updated successfully.");
       } else {
-        await api.post("/api/admin/items", formData);
+        await api.post("/admin/items", formData);
         showToast("✅ Item added successfully.");
       }
       setFormData(initialForm);
@@ -160,7 +160,7 @@ const Items = ({ onChanged }) => {
     const isConfirmed = await confirm(`Are you sure you want to delete "${name}"?`);
     if (!isConfirmed) return;
     try {
-      await api.delete(`/api/admin/items/${id}`);
+      await api.delete(`/admin/items/${id}`);
       showToast(`🗑️ Item "${name}" deleted.`);
       loadItems();
       if (onChanged) await onChanged();
@@ -179,7 +179,7 @@ const Items = ({ onChanged }) => {
     setShowHistoryModal(true);
     setLoadingHistory(true);
     try {
-      const res = await api.get('/api/admin/stock-adjustments', { params: { itemId: item.id } });
+      const res = await api.get('/admin/stock-adjustments', { params: { itemId: item.id } });
       setHistoryData(res.data.adjustments || []);
     } catch (e) {
       showToast("Failed to load history.", "error");

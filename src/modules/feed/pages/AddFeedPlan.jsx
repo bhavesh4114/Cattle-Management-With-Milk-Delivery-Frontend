@@ -29,7 +29,7 @@ const AddFeedPlan = ({ onChanged }) => {
   useEffect(() => {
     const loadCows = async () => {
       try {
-        const res = await api.get("/api/admin/cows");
+        const res = await api.get("/admin/cows");
         setCows(res.data.filter((c) => c.status === "Active"));
       } catch (e) {
         console.error("Failed to load cows", e);
@@ -55,7 +55,7 @@ const AddFeedPlan = ({ onChanged }) => {
     }
 
     try {
-      await api.post("/api/admin/feeding-plans", form);
+      await api.post("/admin/feeding-plans", form);
       if (onChanged) await onChanged();
       navigate("/admin/feed-plan");
     } catch (err) {

@@ -29,7 +29,7 @@ const DeliveryBoyManagement = () => {
   const fetchBoys = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/delivery/boys");
+      const res = await api.get("/delivery/boys");
       setBoys(res.data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -39,8 +39,8 @@ const DeliveryBoyManagement = () => {
     setAssignModal({ isOpen: true, boy, trials: [], subs: [], loading: true, activeTab: 'sub' });
     try {
       const [subsRes, trialsRes] = await Promise.all([
-        api.get('/api/milk-module/subscription/all-subscriptions'),
-        api.get('/api/milk-module/trial/all-trials')
+        api.get('/milk-module/subscription/all-subscriptions'),
+        api.get('/milk-module/trial/all-trials')
       ]);
 
       // Filter only orders whose pincode matches the delivery boy's assigned pincodes
@@ -77,7 +77,7 @@ const DeliveryBoyManagement = () => {
 
   const handleAssignGroup = async (group, type) => {
     try {
-      await Promise.all(group.ids.map(id => api.post(`/api/delivery/assign/${type}/${id}`, { deliveryBoyId: assignModal.boy.id })));
+      await Promise.all(group.ids.map(id => api.post(`/delivery/assign/${type}/${id}`, { deliveryBoyId: assignModal.boy.id })));
       const customerName = group.customerName || 'Customer';
       const boyName = assignModal.boy?.name || 'Delivery Boy';
       setSuccessPopup({ show: true, customerName, boyName, type });
@@ -112,7 +112,7 @@ const DeliveryBoyManagement = () => {
   const saveProfile = async () => {
     try {
       const pincodes = profileForm.pincodes.split(",").map(p => p.trim()).filter(Boolean);
-      await api.post(`/api/delivery/boys/${profileModal.boy.id}/profile`, {
+      await api.post(`/delivery/boys/${profileModal.boy.id}/profile`, {
         ...profileForm,
         pincodes,
         latitude: profileForm.latitude ? parseFloat(profileForm.latitude) : null,
@@ -131,18 +131,18 @@ const DeliveryBoyManagement = () => {
     try {
       const from = new Date(); from.setDate(from.getDate() - 7);
       const to = new Date(); to.setDate(to.getDate() + 14);
-      const res = await api.get(`/api/delivery/boys/${boy.id}/availability?from=${from.toISOString()}&to=${to.toISOString()}`);
+      const res = await api.get(`/delivery/boys/${boy.id}/availability?from=${from.toISOString()}&to=${to.toISOString()}`);
       setAvailList(res.data);
     } catch (e) { setAvailList([]); }
   };
 
   const saveAvailability = async () => {
     try {
-      await api.post(`/api/delivery/boys/${availModal.boy.id}/availability`, availForm);
+      await api.post(`/delivery/boys/${availModal.boy.id}/availability`, availForm);
       showToast(`Availability set for ${availModal.boy.name}`);
       const from = new Date(); from.setDate(from.getDate() - 7);
       const to = new Date(); to.setDate(to.getDate() + 14);
-      const res = await api.get(`/api/delivery/boys/${availModal.boy.id}/availability?from=${from.toISOString()}&to=${to.toISOString()}`);
+      const res = await api.get(`/delivery/boys/${availModal.boy.id}/availability?from=${from.toISOString()}&to=${to.toISOString()}`);
       setAvailList(res.data);
       fetchBoys();
     } catch (e) { showToast("Failed to save availability", "error"); }
@@ -195,7 +195,7 @@ const DeliveryBoyManagement = () => {
         <button 
           onClick={async () => {
             try {
-              const res = await api.post('/api/delivery/generate-daily-qr');
+              const res = await api.post('/delivery/generate-daily-qr');
               showToast(res.data.message || 'Permanent door QR codes are used for delivery confirmation.');
             } catch (e) {
               showToast('Failed to check QR setup', 'error');

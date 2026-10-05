@@ -44,8 +44,8 @@ const CowMilk = () => {
     setToast({ text: "", type: "" });
     try {
       const [cowsRes, milkRes] = await Promise.all([
-        api.get("/api/admin/cows"),
-        api.get(`/api/admin/milk/daily?date=${selectedDate}`)
+        api.get("/admin/cows"),
+        api.get(`/admin/milk/daily?date=${selectedDate}`)
       ]);
       
       let activeCows = cowsRes.data.filter((c) => c.status === "Active" && c.isActiveForMilk);
@@ -74,7 +74,7 @@ const CowMilk = () => {
     const isConfirmed = await confirm("Are you sure you want to delete this milk record?");
     if (!isConfirmed) return;
     try {
-      await api.delete(`/api/admin/milk/${recordId}`);
+      await api.delete(`/admin/milk/${recordId}`);
       showToast("Record deleted successfully!");
       handleSearch();
     } catch {

@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from "../../../services/api";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -27,15 +27,19 @@ const AdminLogin = () => {
     setIsLoading(true);
 
     try {
-      const res = await axios.post("/api/admin/auth/login", formData);
+      const res = await api.post("/admin/auth/login", formData);
 
       localStorage.setItem("adminToken", res.data.token);
       localStorage.setItem("adminData", JSON.stringify(res.data.admin));
 
-      const roleName = res.data.admin?.customRole?.name?.toLowerCase() || ""; if (roleName.includes("delivery") || roleName.includes("milk")) { navigate("/milk-admin/dashboard"); } else { navigate("/admin/dashboard"); }
+      const roleName = res.data.admin?.customRole?.name?.toLowerCase() || "";
+      const isDeliveryOrMilk = roleName.includes("delivery") || roleName.includes("delever") || roleName.includes("milk") || res.data.admin?.permissions?.some(p => String(p).toLowerCase().includes("deliver"));
+      if (isDeliveryOrMilk) { navigate("/milk-admin/dashboard"); } else { navigate("/admin/dashboard"); }
     } catch (err) {
       if (err.response && err.response.data && err.response.data.message) {
         setMessage(err.response.data.message);
+      } else if (!err.response) {
+        setMessage("Unable to connect to server. Please check backend.");
       } else {
         setMessage("Invalid email or password");
       }

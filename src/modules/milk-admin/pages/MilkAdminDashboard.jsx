@@ -27,7 +27,8 @@ const MilkAdminDashboard = () => {
     }
   }, []);
 
-  const isDeliveryBoy = adminData?.customRole?.name?.toLowerCase().includes("delivery");
+  const roleName = (adminData?.customRole?.name || "").toLowerCase();
+  const isDeliveryBoy = roleName.includes("delivery") || roleName.includes("delever") || adminData?.permissions?.some(p => String(p).toLowerCase().includes("deliver"));
 
   useEffect(() => {
     if (isDeliveryBoy && activeTab !== "my-deliveries") {
@@ -43,7 +44,7 @@ const MilkAdminDashboard = () => {
 
   const fetchStats = async () => {
     try {
-        const res = await api.get('/api/milk-module/dashboard/stats');
+        const res = await api.get('/milk-module/dashboard/stats');
         setStats(res.data);
     } catch (e) {
         console.error("Failed to fetch dashboard stats", e);

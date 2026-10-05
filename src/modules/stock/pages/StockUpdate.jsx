@@ -11,7 +11,7 @@ const StockUpdate = () => {
   const fetchAdjustments = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/admin/stock-adjustments");
+      const res = await api.get("/admin/stock-adjustments");
       setAdjustments(res.data.adjustments || []);
     } catch (err) {
       setMessage({ text: "Failed to load stock updates.", type: "error" });

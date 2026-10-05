@@ -25,7 +25,7 @@ const ManualAdjustment = () => {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const res = await api.get("/api/admin/items");
+        const res = await api.get("/admin/items");
         setItems(res.data);
       } catch (err) {
         console.error("Failed to load items", err);
@@ -52,7 +52,7 @@ const ManualAdjustment = () => {
     setError("");
 
     try {
-      await api.post("/api/admin/stock-adjustments", {
+      await api.post("/admin/stock-adjustments", {
         ...formData,
         adjustment: Number(formData.adjustment)
       });

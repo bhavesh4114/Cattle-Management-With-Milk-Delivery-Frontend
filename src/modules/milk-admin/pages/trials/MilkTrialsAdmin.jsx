@@ -23,7 +23,7 @@ const MilkTrialsAdmin = () => {
 
     const fetchProducts = async () => {
         try {
-            const res = await api.get('/api/products/active');
+            const res = await api.get('/products/active');
             setPricing(res.data);
         } catch (error) {
             console.error("Error fetching products:", error);
@@ -32,7 +32,7 @@ const MilkTrialsAdmin = () => {
 
     const fetchDeliveryBoys = async () => {
         try {
-            const res = await api.get('/api/milk-module/delivery-boys');
+            const res = await api.get('/milk-module/delivery-boys');
             setDeliveryBoys(res.data);
         } catch (error) {
             console.error("Error fetching delivery boys:", error);
@@ -41,7 +41,7 @@ const MilkTrialsAdmin = () => {
 
     const fetchTrials = async () => {
         try {
-            const res = await api.get('/api/milk-module/trial/all-trials');
+            const res = await api.get('/milk-module/trial/all-trials');
             setTrials(res.data);
             setLoading(false);
         } catch (error) {
@@ -52,7 +52,7 @@ const MilkTrialsAdmin = () => {
 
     const handleAssignDelivery = async (trialId, boyId) => {
         try {
-            await api.post(`/api/milk-module/assign-delivery/trial/${trialId}`, { deliveryBoyId: boyId });
+            await api.post(`/milk-module/assign-delivery/trial/${trialId}`, { deliveryBoyId: boyId });
             showToast("Delivery Boy Assigned!", "success");
             fetchTrials();
             setViewModal({ ...viewModal, data: { ...viewModal.data, deliveryBoyId: boyId, deliveryStatus: 'Assigned' } });
@@ -63,7 +63,7 @@ const MilkTrialsAdmin = () => {
 
     const updateStatus = async (id, status) => {
         try {
-            await api.put(`/api/milk-module/trial/${id}/status`, { 
+            await api.put(`/milk-module/trial/${id}/status`, { 
                 status,
                 startDate: status === 'ACTIVE' ? new Date() : undefined,
                 endDate: status === 'ACTIVE' ? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) : undefined // 2 days from now

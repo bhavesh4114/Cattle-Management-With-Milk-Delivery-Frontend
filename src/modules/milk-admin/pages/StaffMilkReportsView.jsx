@@ -18,7 +18,7 @@ const StaffMilkReportsView = () => {
 
     const fetchReports = async () => {
         try {
-            const res = await api.get('/api/staff-milk/reports');
+            const res = await api.get('/staff-milk/reports');
             setReports(res.data);
             setLoading(false);
         } catch (err) {
@@ -29,7 +29,7 @@ const StaffMilkReportsView = () => {
 
     const handleApprove = async (id) => {
         try {
-            await api.put(`/api/staff-milk/approve-report/${id}`);
+            await api.put(`/staff-milk/approve-report/${id}`);
             // Update local state to reflect approval
             setReports(reports.map(report => report.id === id ? { ...report, status: 'APPROVED' } : report));
             showToast("Report approved successfully");
@@ -41,7 +41,7 @@ const StaffMilkReportsView = () => {
 
     const handleReject = async (id) => {
         try {
-            await api.put(`/api/staff-milk/reject-report/${id}`);
+            await api.put(`/staff-milk/reject-report/${id}`);
             // Update local state to reflect rejection
             setReports(reports.map(report => report.id === id ? { ...report, status: 'REJECTED' } : report));
             showToast("Report rejected successfully");

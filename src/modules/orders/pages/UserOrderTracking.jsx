@@ -36,9 +36,9 @@ const UserOrderTracking = ({ onBack }) => {
   const fetchOrders = async () => {
     try {
       const [priceRes, subRes, trialRes] = await Promise.all([
-        api.get('/api/products/active').catch(() => ({ data: [] })),
-        api.get('/api/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
-        api.get('/api/milk-module/trial/my-trials').catch(() => ({ data: [] }))
+        api.get('/products/active').catch(() => ({ data: [] })),
+        api.get('/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
+        api.get('/milk-module/trial/my-trials').catch(() => ({ data: [] }))
       ]);
       setPricing(priceRes.data);
       setSubscriptions(subRes.data);
@@ -61,7 +61,7 @@ const UserOrderTracking = ({ onBack }) => {
     try {
       const adminData = JSON.parse(localStorage.getItem("adminData") || "{}");
       if (!adminData.id) return setDoorQr({ loading: false, token: "", user: null });
-      const res = await api.get(`/api/users/${adminData.id}/qr`);
+      const res = await api.get(`/users/${adminData.id}/qr`);
       setDoorQr({ loading: false, token: res.data.qrToken, user: res.data.user });
     } catch (e) {
       console.error(e);
@@ -99,11 +99,21 @@ const UserOrderTracking = ({ onBack }) => {
     printWindow.document.close();
   };
 
+  const copyDoorQrToken = async () => {
+    if (!doorQr.token) return;
+    try {
+      await navigator.clipboard.writeText(doorQr.token);
+      showToast('Delivery token copied.');
+    } catch {
+      showToast('Token copy failed. Select and copy it manually.', 'error');
+    }
+  };
+
   const respondToOffer = async (ids, decision) => {
     try {
       const idList = Array.isArray(ids) ? ids : [ids];
       for (let id of idList) {
-        await api.post(`/api/milk-module/subscription/${id}/user-respond`, { decision });
+        await api.post(`/milk-module/subscription/${id}/user-respond`, { decision });
       }
       showToast(decision === 'ACCEPT' ? 'Date change accepted!' : 'Order cancelled.');
       fetchOrders();
@@ -118,9 +128,9 @@ const UserOrderTracking = ({ onBack }) => {
     try {
       const idList = Array.isArray(payModal.ids) ? payModal.ids : [payModal.id];
       for (let id of idList) {
-        await api.post(`/api/milk-module/subscription/${id}/pay`, { method: payMethod });
+        await api.post(`/milk-module/subscription/${id}/pay`, { method: payMethod });
         if (payMethod === 'ONLINE') {
-          await api.post('/api/milk-module/subscription/verify-payment', {
+          await api.post('/milk-module/subscription/verify-payment', {
             subscriptionId: id,
             transactionId: 'TXN' + Date.now(),
             status: 'SUCCESS'
@@ -163,7 +173,7 @@ const UserOrderTracking = ({ onBack }) => {
   const openTrackOrder = async (id, orderCategory) => {
     setTrackModal({ open: true, data: null, loading: true });
     try {
-      const res = await api.get(`/api/delivery/track?orderType=${orderCategory}&orderId=${id}`);
+      const res = await api.get(`/delivery/track?orderType=${orderCategory}&orderId=${id}`);
       setTrackModal({ open: true, data: res.data, loading: false });
     } catch (e) {
       console.error(e);
@@ -293,6 +303,11 @@ const UserOrderTracking = ({ onBack }) => {
           <div>
             <h2 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '1.15rem' }}>Door Delivery QR</h2>
             <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>Print this once and paste it on your door for secure delivery confirmation.</p>
+            {doorQr.token && (
+              <button onClick={copyDoorQrToken} style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', cursor: 'pointer', fontWeight: 800, fontSize: '0.78rem' }}>
+                Token: {doorQr.token.slice(0, 10)}...{doorQr.token.slice(-6)}
+              </button>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div id="door-qr-print-source" style={{ background: 'white', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
@@ -433,12 +448,19 @@ const UserOrderTracking = ({ onBack }) => {
                         )}
                         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                           <div style={{ padding: '8px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                            <QRCodeSVG
-                              value={`Customer: ${group.customerName}\nPhone: ${group.phone}\nItems: ${group.items.length}\nTotal: Rs ${group.totalGroupAmount}`}
-                              size={90}
-                              level="L"
-                            />
-                            <span style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', fontWeight: 'bold', textTransform: 'uppercase' }}>Scan for Delivery</span>
+                            {doorQr.token ? (
+                              <QRCodeSVG value={doorQr.token} size={90} level="H" />
+                            ) : (
+                              <div style={{ width: 90, height: 90, display: 'grid', placeItems: 'center', color: '#94a3b8', fontSize: '11px' }}>
+                                {doorQr.loading ? 'Loading' : 'No QR'}
+                              </div>
+                            )}
+                            <span style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', fontWeight: 'bold', textTransform: 'uppercase' }}>Door QR Token</span>
+                            {doorQr.token && (
+                              <button onClick={copyDoorQrToken} style={{ marginTop: '5px', border: 'none', background: 'transparent', color: '#2563eb', cursor: 'pointer', fontSize: '10px', fontWeight: 800 }}>
+                                Copy token
+                              </button>
+                            )}
                           </div>
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <button onClick={() => openTrackOrder(group.id, group.orderCategory)} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>

@@ -31,7 +31,7 @@ const AddMilk = () => {
     setToast({ text: "", type: "" });
     setSearched(true);
     try {
-      const cowsRes = await api.get("/api/admin/cows");
+      const cowsRes = await api.get("/admin/cows");
       let active = cowsRes.data.filter((c) => {
         const status = c.status || "Active";
         return status.toLowerCase() === "active" && c.isActiveForMilk;
@@ -45,7 +45,7 @@ const AddMilk = () => {
       console.log("ACTIVE AFTER FILTER: ", active.map(c => ({ name: c.name, type: c.animalType, activeForMilk: c.isActiveForMilk, status: c.status })));
       setCows(active);
 
-      const milkRes = await api.get(`/api/admin/milk/daily?date=${selectedDate}`);
+      const milkRes = await api.get(`/admin/milk/daily?date=${selectedDate}`);
       const existing = milkRes.data;
       setSavedRecords(existing);
 
@@ -115,7 +115,7 @@ const AddMilk = () => {
       return;
     }
     try {
-      await api.post("/api/admin/milk/daily", { date: selectedDate, entries: payload });
+      await api.post("/admin/milk/daily", { date: selectedDate, entries: payload });
       showToast("✅ Milk entries saved! Feed plan auto-generated for next day.");
       handleSearch();
       setTimeout(() => navigate("/admin/cow-milk"), 1000);

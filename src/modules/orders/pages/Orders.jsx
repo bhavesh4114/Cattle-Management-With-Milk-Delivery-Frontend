@@ -44,8 +44,8 @@ const Orders = () => {
     setLoading(true);
     try {
       const [ordersRes, itemsRes] = await Promise.all([
-        api.get("/api/admin/orders"),
-        api.get("/api/admin/items")
+        api.get("/admin/orders"),
+        api.get("/admin/items")
       ]);
       setOrders(ordersRes.data);
       setInventoryItems(itemsRes.data);
@@ -58,7 +58,7 @@ const Orders = () => {
 
   const loadOrders = async () => {
     try {
-      const res = await api.get("/api/admin/orders");
+      const res = await api.get("/admin/orders");
       setOrders(res.data);
     } catch {
       showToast("Failed to load orders.", "error");
@@ -151,10 +151,10 @@ const Orders = () => {
     try {
       const payload = { ...form, items: validItems };
       if (editingId) {
-        await api.put(`/api/admin/orders/${editingId}`, payload);
+        await api.put(`/admin/orders/${editingId}`, payload);
         showToast("✅ Order updated successfully.");
       } else {
-        await api.post("/api/admin/orders", payload);
+        await api.post("/admin/orders", payload);
         showToast("✅ Order created successfully.");
       }
       await loadOrders();
@@ -170,7 +170,7 @@ const Orders = () => {
     const isConfirmed = await confirm("Are you sure you want to delete this order?");
     if (!isConfirmed) return;
     try {
-      await api.delete(`/api/admin/orders/${id}`);
+      await api.delete(`/admin/orders/${id}`);
       showToast("🗑️ Order deleted.");
       loadOrders();
     } catch {

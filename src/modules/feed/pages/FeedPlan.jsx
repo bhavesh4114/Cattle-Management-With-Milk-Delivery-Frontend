@@ -33,7 +33,7 @@ const FeedPlan = () => {
     try {
       const params = new URLSearchParams({ date: dateStr });
       if (type && type !== "All") params.append("animalType", type);
-      const res = await api.get(`/api/admin/milk/feed-plan?${params}`);
+      const res = await api.get(`/admin/milk/feed-plan?${params}`);
       setPlans(res.data || []);
       setGenerated(true);
       if (!res.data?.length) {

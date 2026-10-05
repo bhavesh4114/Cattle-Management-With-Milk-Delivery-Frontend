@@ -50,8 +50,8 @@ const UserProducts = () => {
     const fetchMyOrders = async () => {
         try {
             const [subRes, trialRes] = await Promise.all([
-                api.get('/api/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
-                api.get('/api/milk-module/trial/my-trials').catch(() => ({ data: [] }))
+                api.get('/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
+                api.get('/milk-module/trial/my-trials').catch(() => ({ data: [] }))
             ]);
             const all = [...(subRes.data || []), ...(trialRes.data || [])];
             setActiveOrders(all.filter(o => !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(o.status)));
@@ -62,7 +62,7 @@ const UserProducts = () => {
 
     const fetchProducts = async () => {
         try {
-            const res = await api.get('/api/products/active');
+            const res = await api.get('/products/active');
             setProducts(res.data);
             setLoading(false);
         } catch (error) {
@@ -124,7 +124,7 @@ const UserProducts = () => {
         try {
             for (const item of cart) {
                 if (orderType === 'Single') {
-                    await api.post('/api/milk-module/trial/submit-request', {
+                    await api.post('/milk-module/trial/submit-request', {
                         customerName: form.customerName,
                         phone: form.phone,
                         address: form.address,
@@ -137,7 +137,7 @@ const UserProducts = () => {
                         notes: form.notes
                     });
                 } else {
-                    await api.post('/api/milk-module/subscription/submit-request', {
+                    await api.post('/milk-module/subscription/submit-request', {
                         customerName: form.customerName,
                         phone: form.phone,
                         address: form.address,

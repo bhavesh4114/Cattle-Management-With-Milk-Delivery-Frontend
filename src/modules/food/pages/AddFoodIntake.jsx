@@ -35,9 +35,9 @@ const AddFoodIntake = () => {
       setLoading(true);
       try {
         const [cowsRes, itemsRes, intakeRes] = await Promise.all([
-          api.get("/api/admin/cows"),
-          api.get("/api/admin/items"),
-          api.get("/api/admin/food-intake")
+          api.get("/admin/cows"),
+          api.get("/admin/items"),
+          api.get("/admin/food-intake")
         ]);
 
         const activeCows = cowsRes.data.filter(c => c.status === "Active" || !c.status);
@@ -179,7 +179,7 @@ const AddFoodIntake = () => {
           if (intake.recordId) {
              if (hasIntake) {
                 // Update
-                promises.push(api.put(`/api/admin/food-intake/${intake.recordId}`, {
+                promises.push(api.put(`/admin/food-intake/${intake.recordId}`, {
                   cowId: cow.id,
                   recordedAt: selectedDate,
                   itemId: itemId,
@@ -193,11 +193,11 @@ const AddFoodIntake = () => {
                 }));
              } else {
                 // Delete if cleared
-                promises.push(api.delete(`/api/admin/food-intake/${intake.recordId}`));
+                promises.push(api.delete(`/admin/food-intake/${intake.recordId}`));
              }
           } else if (hasIntake) {
             // Create
-            promises.push(api.post("/api/admin/food-intake", {
+            promises.push(api.post("/admin/food-intake", {
               cowId: cow.id,
               recordedAt: selectedDate,
               itemId: itemId,

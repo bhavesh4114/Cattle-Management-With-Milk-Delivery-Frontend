@@ -25,7 +25,7 @@ const AddCowSold = ({ onChanged }) => {
   useEffect(() => {
     const loadCows = async () => {
       try {
-        const res = await api.get("/api/admin/cows");
+        const res = await api.get("/admin/cows");
         setCows(res.data.filter((c) => c.status === "Active"));
       } catch (e) {
         console.error("Failed to load cows", e);
@@ -74,7 +74,7 @@ const AddCowSold = ({ onChanged }) => {
         amountReceived: form.salePrice
       };
 
-      await api.post(`/api/admin/cows/${form.cowId}/sell`, payload);
+      await api.post(`/admin/cows/${form.cowId}/sell`, payload);
       if (onChanged) await onChanged();
       navigate("/admin/cow-sold");
     } catch (err) {

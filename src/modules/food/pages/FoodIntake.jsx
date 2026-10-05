@@ -32,7 +32,7 @@ const FoodIntake = () => {
   const loadRecords = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/admin/food-intake");
+      const res = await api.get("/admin/food-intake");
       setIntakeRecords(res.data);
     } catch (e) {
       console.error(e);
@@ -90,7 +90,7 @@ const FoodIntake = () => {
     const isConfirmed = await confirm('Delete all feed records for this day?');
     if(isConfirmed) {
       try {
-        const promises = recordIds.map(id => api.delete(`/api/admin/food-intake/${id}`));
+        const promises = recordIds.map(id => api.delete(`/admin/food-intake/${id}`));
         await Promise.all(promises);
         loadRecords();
       } catch(e) {

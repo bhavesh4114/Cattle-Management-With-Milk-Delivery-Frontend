@@ -16,7 +16,7 @@ const PaymentReminders = () => {
 
     const fetchUsers = async () => {
         try {
-            const res = await api.get('/api/alerts/pending-payments');
+            const res = await api.get('/alerts/pending-payments');
             setUsers(res.data);
         } catch (e) {
             console.error(e);
@@ -52,7 +52,7 @@ const PaymentReminders = () => {
         }
         setSending(true);
         try {
-            await api.post('/api/alerts/send', {
+            await api.post('/alerts/send', {
                 userIds: selectedUsers,
                 message: message
             });
