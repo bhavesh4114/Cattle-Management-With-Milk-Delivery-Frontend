@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../../../../services/api';
+import RescheduleDeliveryModal from '../../../../components/notifications/RescheduleDeliveryModal';
 
 const MilkSubscriptionsAdmin = () => {
     const [subs, setSubs] = useState([]);
@@ -11,6 +12,7 @@ const MilkSubscriptionsAdmin = () => {
     const [proposeModal, setProposeModal] = useState({ isOpen: false, ids: null, startDate: '', endDate: '' });
     const [viewModal, setViewModal] = useState({ isOpen: false, data: null });
     const [receiptModal, setReceiptModal] = useState({ isOpen: false, data: null });
+    const [rescheduleModal, setRescheduleModal] = useState({ isOpen: false, data: null });
     const [toast, setToast] = useState({ text: '', type: '' });
     const [deliveryBoys, setDeliveryBoys] = useState([]);
 
@@ -203,16 +205,16 @@ const MilkSubscriptionsAdmin = () => {
                 startY: 98,
                 head: [['#', 'Product Description', 'Daily Qty', 'Total Days', 'Rate/Unit', 'Total Amount']],
                 body: tableRows,
-                headStyles: { 
-                    fillColor: [30, 58, 138], 
-                    textColor: [255, 255, 255], 
+                headStyles: {
+                    fillColor: [30, 58, 138],
+                    textColor: [255, 255, 255],
                     fontStyle: 'bold',
                     fontSize: 9,
                     halign: 'left'
                 },
-                bodyStyles: { 
-                    textColor: [15, 23, 42], 
-                    fontSize: 9 
+                bodyStyles: {
+                    textColor: [15, 23, 42],
+                    fontSize: 9
                 },
                 columnStyles: {
                     0: { halign: 'center', cellWidth: 10 },
@@ -223,9 +225,9 @@ const MilkSubscriptionsAdmin = () => {
                     5: { halign: 'right', cellWidth: 31 }
                 },
                 foot: [['', '', '', '', 'Total Paid:', `Rs. ${grandTotal}`]],
-                footStyles: { 
-                    fillColor: [241, 245, 249], 
-                    textColor: [15, 23, 42], 
+                footStyles: {
+                    fillColor: [241, 245, 249],
+                    textColor: [15, 23, 42],
                     fontStyle: 'bold',
                     halign: 'right',
                     fontSize: 10
@@ -405,6 +407,25 @@ const MilkSubscriptionsAdmin = () => {
                                             <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" height="14" width="14" xmlns="http://www.w3.org/2000/svg"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                             View Details
                                         </button>
+                                        <button
+                                            onClick={() => setRescheduleModal({ isOpen: true, data: s })}
+                                            title="Reschedule Delivery Date"
+                                            style={{
+                                                padding: '4px 8px',
+                                                background: '#fffbeb',
+                                                color: '#b45309',
+                                                border: '1px solid #fde68a',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                fontSize: '12px',
+                                                fontWeight: 'bold',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                        >
+                                            📅 Reschedule
+                                        </button>
                                         {s.paymentStatus === 'PAID' && (
                                             <button onClick={() => downloadReceiptPdf(s)} title="Download PDF Receipt" style={{ padding: '4px 8px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" height="14" width="14" xmlns="http://www.w3.org/2000/svg">
@@ -489,7 +510,7 @@ const MilkSubscriptionsAdmin = () => {
                                     </div>
                                     <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />
                                     <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr' }}>
-                                        <strong style={{ color: '#475569' }}>Products:</strong> 
+                                        <strong style={{ color: '#475569' }}>Products:</strong>
                                         <div style={{ color: '#0f172a', fontWeight: '500' }}>
                                             {viewModal.data.items && viewModal.data.items.map(i => (
                                                 <div key={i.id}>{i.dailyQuantity} {getUnit(i.milkType)}/day {i.milkType}</div>
@@ -517,10 +538,10 @@ const MilkSubscriptionsAdmin = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '16px' }}>
                                         <strong style={{ color: '#475569', marginBottom: '8px' }}>Order QR Code</strong>
                                         <div style={{ padding: '12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
-                                            <QRCodeSVG 
-                                                value={`Customer: ${viewModal.data.customerName}\nPhone: ${viewModal.data.phone}\nAddress: ${viewModal.data.address}\nItems: ${viewModal.data.items?.map(i => `${i.dailyQuantity} ${i.milkType}`).join(', ')}\nTotal: Rs ${viewModal.data.totalGroupAmount || viewModal.data.estimatedGroupAmount || 0}`} 
-                                                size={220} 
-                                                level="L" 
+                                            <QRCodeSVG
+                                                value={`Customer: ${viewModal.data.customerName}\nPhone: ${viewModal.data.phone}\nAddress: ${viewModal.data.address}\nItems: ${viewModal.data.items?.map(i => `${i.dailyQuantity} ${i.milkType}`).join(', ')}\nTotal: Rs ${viewModal.data.totalGroupAmount || viewModal.data.estimatedGroupAmount || 0}`}
+                                                size={220}
+                                                level="L"
                                             />
                                         </div>
                                         <span style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>Scan for delivery confirmation</span>
@@ -677,6 +698,17 @@ const MilkSubscriptionsAdmin = () => {
                     </div>
                 </div>
             )}
+
+            {/* Reschedule Delivery Date Modal */}
+            <RescheduleDeliveryModal
+                isOpen={rescheduleModal.isOpen}
+                delivery={rescheduleModal.data}
+                onClose={() => setRescheduleModal({ isOpen: false, data: null })}
+                onRescheduled={() => {
+                    showToast('Delivery Date Rescheduled & Notifications Sent!');
+                    fetchSubs();
+                }}
+            />
         </div>
     );
 };

@@ -35,10 +35,32 @@ function toDisplayDate(isoDate) {
 }
 
 export default function Report() {
+    const adminData = useMemo(() => {
+        try {
+            return JSON.parse(localStorage.getItem("adminData")) || {};
+        } catch {
+            return {};
+        }
+    }, []);
+    const roleName = (adminData?.customRole?.name || "").toLowerCase();
+    const isUser = adminData?.role === "CUSTOM" && (roleName.includes("user") || (adminData?.name || "").toLowerCase().includes("user"));
+
+    // Available report types customized for Customer vs Farm Admin
+    const availableReportTypes = useMemo(() => {
+        if (isUser) {
+            return [
+                { value: "", label: "Select Report Type", cowWise: false },
+                { value: "purchase", label: "Purchase Orders (My Orders)", cowWise: false },
+                { value: "itemwise", label: "Item-wise Orders", cowWise: false },
+            ];
+        }
+        return REPORT_TYPES;
+    }, [isUser]);
+
     // ----- form state -----
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
-    const [reportType, setReportType] = useState("");
+    const [reportType, setReportType] = useState(isUser ? "purchase" : "");
     const [selectedCow, setSelectedCow] = useState("all");
     const [cows, setCows] = useState([]); // Loaded from API
 
@@ -50,12 +72,14 @@ export default function Report() {
     const [error, setError] = useState("");
     const [autoPrint, setAutoPrint] = useState(false); // true when "Download PDF" was clicked from the form
 
-    // Fetch cows on mount
+    // Fetch cows on mount only for farm admin/staff
     useEffect(() => {
-        api.get("/admin/cows")
-            .then(res => setCows(res.data.map(c => c.name || c.tagNo)))
-            .catch(err => console.error("Failed to load cows", err));
-    }, []);
+        if (!isUser) {
+            api.get("/admin/cows")
+                .then(res => setCows(res.data.map(c => c.name || c.tagNo)))
+                .catch(err => console.error("Failed to load cows", err));
+        }
+    }, [isUser]);
 
     // When we land on the report page because of the form's "Download PDF"
     // button, trigger the print dialog automatically once the table is rendered.
@@ -69,8 +93,8 @@ export default function Report() {
         }
     }, [view, autoPrint]);
 
-    const currentType = REPORT_TYPES.find((r) => r.value === reportType);
-    const showCowSelect = !!currentType?.cowWise;
+    const currentType = availableReportTypes.find((r) => r.value === reportType);
+    const showCowSelect = !isUser && !!currentType?.cowWise;
 
     async function fetchReportData() {
         const queryParams = new URLSearchParams({
@@ -192,7 +216,7 @@ export default function Report() {
                                 setSelectedCow("all");
                             }}
                         >
-                            {REPORT_TYPES.map((rt) => (
+                            {availableReportTypes.map((rt) => (
                                 <option key={rt.value} value={rt.value}>
                                     {rt.label}
                                 </option>
@@ -234,6 +258,10 @@ export default function Report() {
         );
     }
 
+    const reportTitle = isUser
+        ? (reportType === "itemwise" ? "My Item-wise Orders Report" : "My Purchase Orders Report")
+        : (REPORT_TITLES[reportType] || "Report");
+
     // ---------------------------------------------------------------------
     // REPORT (RESULT) VIEW
     // ---------------------------------------------------------------------
@@ -242,20 +270,20 @@ export default function Report() {
             <div className="report-result__header no-print" style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }}>
                 <h2 style={{ minWidth: 0, wordBreak: "break-word", whiteSpace: "normal" }}>
                     {reportType === "milk" || reportType === "cowmilk" ? "🥛 " : "📋 "}
-                    {REPORT_TITLES[reportType] || "Report"}
+                    {reportTitle}
                 </h2>
                 <div className="report-result__actions" style={{ maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
                     <button onClick={handleBack} style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", fontWeight: "600", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"} onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}>
   <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" height="16" width="16" xmlns="http://www.w3.org/2000/svg"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
   Back
 </button>
-                    <ExportButtons tableId="report-generated-table" filename={`Report_${reportType}_${fromDate}_to_${toDate}`} title={REPORT_TITLES[reportType] || "Report"} />
+                    <ExportButtons tableId="report-generated-table" filename={`Report_${reportType}_${fromDate}_to_${toDate}`} title={reportTitle} />
                 </div>
             </div>
 
             <div className="report-print-area" style={{ width: "100%", minWidth: 0, boxSizing: "border-box", overflowX: "hidden" }}>
                 <h2 className="print-only-title">
-                    {REPORT_TITLES[reportType] || "Report"}
+                    {reportTitle}
                 </h2>
 
                 <div className="report-period" style={{ wordBreak: "break-word" }}>

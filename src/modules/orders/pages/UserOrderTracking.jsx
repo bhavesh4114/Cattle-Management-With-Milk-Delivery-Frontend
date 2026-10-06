@@ -4,6 +4,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import AlertPopup from '../components/AlertPopup';
+import NotificationCenter from '../../../components/notifications/NotificationCenter';
+import SpecialAlertsBanner from '../../../components/notifications/SpecialAlertsBanner';
 
 
 const STATUS_COLORS = {
@@ -292,13 +294,17 @@ const UserOrderTracking = ({ onBack }) => {
             <p style={{ margin: '4px 0 0 0', opacity: 0.8, fontSize: '0.9rem' }}>Track your milk orders and deliveries</p>
           </div>
         </div>
-        <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px 20px', borderRadius: '12px', textAlign: 'center' }}>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800' }}>{groupedOrders.length}</div>
-          <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Total Orders</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <NotificationCenter />
+          <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px 20px', borderRadius: '12px', textAlign: 'center' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: '800' }}>{groupedOrders.length}</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Total Orders</div>
+          </div>
         </div>
       </div>
 
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
+        <SpecialAlertsBanner userRole="USER" />
         <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '20px 24px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '18px', flexWrap: 'wrap', boxShadow: '0 4px 12px rgba(15,23,42,0.06)' }}>
           <div>
             <h2 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '1.15rem' }}>Door Delivery QR</h2>

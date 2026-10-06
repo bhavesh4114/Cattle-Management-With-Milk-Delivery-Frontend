@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 import UserOrderTracking from './UserOrderTracking';
 import AlertPopup from '../components/AlertPopup';
+import NotificationCenter from '../../../components/notifications/NotificationCenter';
+import SpecialAlertsBanner from '../../../components/notifications/SpecialAlertsBanner';
 
 const UserProducts = () => {
     const [products, setProducts] = useState([]);
@@ -172,6 +174,7 @@ const UserProducts = () => {
     return (
         <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', fontFamily: '"Inter", sans-serif' }}>
             <AlertPopup />
+            <SpecialAlertsBanner userRole="USER" />
             {toast.text && (
                 <div style={{ position: 'fixed', top: '24px', right: '24px', background: toast.type === 'error' ? '#ef4444' : '#10b981', color: 'white', padding: '16px 24px', borderRadius: '12px', zIndex: 9999, fontWeight: 'bold', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
                     {toast.text}
@@ -185,9 +188,12 @@ const UserProducts = () => {
                 <p style={{ margin: 0, fontSize: '1rem', color: '#94a3b8', maxWidth: '600px' }}>
                     Pure, natural, and delivered directly to your doorstep. Choose from our curated selection of premium dairy products.
                 </p>
-                <button onClick={() => setShowOrders(true)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    📦 My Orders
-                </button>
+                <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <NotificationCenter />
+                    <button onClick={() => setShowOrders(true)} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        📦 My Orders
+                    </button>
+                </div>
             </div>
 
             {cart.length > 0 && !showCart && (

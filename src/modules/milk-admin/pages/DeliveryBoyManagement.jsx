@@ -7,7 +7,7 @@ const statusColor = {
   Unavailable: { bg: "#fee2e2", color: "#b91c1c", dot: "#ef4444" },
 };
 
-const DeliveryBoyManagement = () => {
+const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
   const [boys, setBoys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ text: "", type: "" });
@@ -192,19 +192,37 @@ const DeliveryBoyManagement = () => {
           <h2 style={{ fontSize: "24px", fontWeight: "bold", color: "#1e293b", margin: 0 }}>Delivery Boy Management</h2>
           <p style={{ color: "#64748b", margin: "4px 0 0 0", fontSize: "14px" }}>Set pincodes, areas, and daily availability for your delivery team.</p>
         </div>
-        <button 
-          onClick={async () => {
-            try {
-              const res = await api.post('/delivery/generate-daily-qr');
-              showToast(res.data.message || 'Permanent door QR codes are used for delivery confirmation.');
-            } catch (e) {
-              showToast('Failed to check QR setup', 'error');
-            }
-          }}
-          style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #0f766e, #14b8a6)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
-          ▣ Door QR Setup
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {onNavigateToLeaves && (
+            <button
+              onClick={onNavigateToLeaves}
+              style={{ padding: '10px 16px', background: '#f8fafc', color: '#1e3a8a', border: '1px solid #cbd5e1', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              🏖️ Leave Requests
+            </button>
+          )}
+          {onNavigateToQueue && (
+            <button
+              onClick={onNavigateToQueue}
+              style={{ padding: '10px 16px', background: '#f8fafc', color: '#92400e', border: '1px solid #fde68a', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              🔄 Reassignments
+            </button>
+          )}
+          <button 
+            onClick={async () => {
+              try {
+                const res = await api.post('/delivery/generate-daily-qr');
+                showToast(res.data.message || 'Permanent door QR codes are used for delivery confirmation.');
+              } catch (e) {
+                showToast('Failed to check QR setup', 'error');
+              }
+            }}
+            style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #0f766e, #14b8a6)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            ▣ Door QR Setup
+          </button>
+        </div>
       </div>
 
       {boys.length === 0 ? (

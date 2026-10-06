@@ -17,6 +17,8 @@ import Items from "../../stock/pages/Items";
 import Orders from "../../orders/pages/Orders";
 import UserProducts from "../../orders/pages/UserProducts";
 import AlertPopup from "../../orders/components/AlertPopup";
+import NotificationCenter from "../../../components/notifications/NotificationCenter";
+import SpecialAlertsBanner from "../../../components/notifications/SpecialAlertsBanner";
 import Report from "../../reports/pages/Report";
 import AlertReports from "../../reports/pages/AlertReports";
 import CowTreatment from "../../treatment/pages/CowTreatment";
@@ -981,6 +983,9 @@ const AdminDashboard = () => {
   const [message, setMessage] = useState("");
   const config = useMemo(() => configs[currentActive], [currentActive]);
 
+  const roleName = (adminData?.customRole?.name || "").toLowerCase();
+  const isUser = adminData?.role === "CUSTOM" && (roleName.includes("user") || (adminData?.name || "").toLowerCase().includes("user"));
+
   const loadDashboard = async () => {
     try {
       const dashboardRes = await api.get("/admin/dashboard");
@@ -1095,7 +1100,7 @@ const AdminDashboard = () => {
   return (
     <div className="admin-shell">
       <AlertPopup />
-      {showFarmAlerts && (
+      {showFarmAlerts && !isUser && (
         <FarmAlertsModal
           onClose={() => setShowFarmAlerts(false)}
           navigate={navigate}
@@ -1175,10 +1180,13 @@ const AdminDashboard = () => {
               </p>
             </div>
           </div>
-          <div className="topbar-actions">
-            <button type="button" onClick={() => setShowFarmAlerts(true)}>
-              🔔 Alerts
-            </button>
+          <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <NotificationCenter />
+            {!isUser && (
+              <button type="button" onClick={() => setShowFarmAlerts(true)}>
+                🔔 Farm Alerts
+              </button>
+            )}
             {adminData?.role === 'ADMIN' && (
               <button type="button" onClick={() => navigate("/milk-admin")} style={{ background: "#3b82f6", color: "white", border: "none", display: "flex", alignItems: "center", gap: "6px" }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 17l5-5-5-5M19.8 12H9M10 3H4v18h6" /></svg>
@@ -1189,6 +1197,7 @@ const AdminDashboard = () => {
         </header>
 
         <section className="admin-content">
+          <SpecialAlertsBanner />
           {/* Access Control Check */}
           {(() => {
             const perms = adminData?.permissions || [];

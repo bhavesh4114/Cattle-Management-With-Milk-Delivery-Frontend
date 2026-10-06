@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../../services/api";
 import "../../../css/dashboard.css"; // We can reuse base dashboard CSS
 import StaffMilkReportsView from "./StaffMilkReportsView";
@@ -9,14 +9,29 @@ import MilkTrialsAdmin from "./trials/MilkTrialsAdmin";
 import MilkSubscriptionsAdmin from "./subscriptions/MilkSubscriptionsAdmin";
 import DeliveryBoyManagement from "./DeliveryBoyManagement";
 import MyDeliveries from "./MyDeliveries";
+import MyLeaves from "./MyLeaves";
+import DeliveryBoyProfile from "./DeliveryBoyProfile";
+import DeliveryLeavesAdmin from "./DeliveryLeavesAdmin";
+import DeliveryReassignmentQueue from "./DeliveryReassignmentQueue";
 import RoleCreation from "../../roles/pages/RoleCreation";
 import PaymentReminders from "../../orders/components/PaymentReminders";
-
+import NotificationCenter from "../../../components/notifications/NotificationCenter";
+import SpecialAlertsBanner from "../../../components/notifications/SpecialAlertsBanner";
 
 const MilkAdminDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState(localStorage.getItem("milkAdminActiveTab") || "dashboard");
+
+  // Sync initial tab with URL search parameter if present
+  const getInitialTab = () => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam) return tabParam;
+    return localStorage.getItem("milkAdminActiveTab") || "dashboard";
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
   const [stats, setStats] = useState({ totalCustomers: 0, todayDelivery: 0, pendingPayments: 0 });
 
   const adminData = useMemo(() => {
@@ -30,24 +45,34 @@ const MilkAdminDashboard = () => {
   const roleName = (adminData?.customRole?.name || "").toLowerCase();
   const isDeliveryBoy = roleName.includes("delivery") || roleName.includes("delever") || adminData?.permissions?.some(p => String(p).toLowerCase().includes("deliver"));
 
+  // Keep activeTab in sync with URL search params (?tab=...)
   useEffect(() => {
-    if (isDeliveryBoy && activeTab !== "my-deliveries") {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get("tab");
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+      localStorage.setItem("milkAdminActiveTab", tabParam);
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (isDeliveryBoy && activeTab !== "my-deliveries" && activeTab !== "my-leaves" && activeTab !== "my-profile") {
       setActiveTab("my-deliveries");
     }
   }, [isDeliveryBoy, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'dashboard') {
-        fetchStats();
+      fetchStats();
     }
   }, [activeTab]);
 
   const fetchStats = async () => {
     try {
-        const res = await api.get('/milk-module/dashboard/stats');
-        setStats(res.data);
+      const res = await api.get('/milk-module/dashboard/stats');
+      setStats(res.data);
     } catch (e) {
-        console.error("Failed to fetch dashboard stats", e);
+      console.error("Failed to fetch dashboard stats", e);
     }
   };
 
@@ -55,6 +80,7 @@ const MilkAdminDashboard = () => {
     setActiveTab(tabId);
     localStorage.setItem("milkAdminActiveTab", tabId);
     setIsSidebarOpen(false);
+    navigate(`/milk-admin/dashboard?tab=${tabId}`, { replace: true });
   };
 
   return (
@@ -87,7 +113,9 @@ const MilkAdminDashboard = () => {
       >
         <div className="sidebar-brand" style={{ background: "transparent", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <h1 style={{ color: "white", margin: 0 }}>🥛 Milk Admin</h1>
+            <h1 style={{ color: "white", margin: 0 }}>
+              {isDeliveryBoy ? "🛵 Delivery Panel" : "🥛 Milk Admin"}
+            </h1>
             <button
               className="sidebar-close-btn"
               onClick={() => setIsSidebarOpen(false)}
@@ -96,7 +124,9 @@ const MilkAdminDashboard = () => {
               ×
             </button>
           </div>
-          <p style={{ color: "#93c5fd" }}>Delivery Management</p>
+          <p style={{ color: "#93c5fd" }}>
+            {isDeliveryBoy ? "Delivery Boy Portal" : "Delivery Management"}
+          </p>
         </div>
 
         <nav className="sidebar-nav" style={{ padding: "20px 10px", display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -106,12 +136,16 @@ const MilkAdminDashboard = () => {
             { id: "orders", icon: "🛒", label: "Customer Orders" },
             { id: "staff-reports", icon: "📋", label: "Staff Reports" },
             { id: "delivery", icon: "👥", label: "Delivery Boy Mgmt" },
+            { id: "delivery-leaves", icon: "🏖️", label: "Delivery Leaves" },
+            { id: "reassignment-queue", icon: "🔄", label: "Reassignment Queue" },
             { id: "roles", icon: "🛡️", label: "Role Creation" },
             { id: "announcements", icon: "📢", label: "Announcements" },
-            { id: "my-deliveries", icon: "🛵", label: "My Deliveries" }
+            { id: "my-deliveries", icon: "🛵", label: "My Deliveries" },
+            { id: "my-leaves", icon: "📅", label: "My Leaves" },
+            { id: "my-profile", icon: "👤", label: "My Profile" }
           ].filter(item => {
-            if (isDeliveryBoy) return item.id === "my-deliveries";
-            if (item.id === "my-deliveries") return false;
+            if (isDeliveryBoy) return item.id === "my-deliveries" || item.id === "my-leaves" || item.id === "my-profile";
+            if (item.id === "my-deliveries" || item.id === "my-leaves" || item.id === "my-profile") return false;
             if (item.id === "roles" || item.id === "announcements") return adminData?.role === "ADMIN";
             return true;
           }).map((item) => (
@@ -148,33 +182,66 @@ const MilkAdminDashboard = () => {
               ☰
             </button>
             <div>
-              <h2 style={{ color: "#0f172a" }}>Milk Delivery Dashboard</h2>
-              <p style={{ color: "#64748b" }}>Manage milk distribution and customers</p>
+              <h2 style={{ color: "#0f172a" }}>
+                {isDeliveryBoy ? "Delivery Dashboard" : "Milk Delivery Dashboard"}
+              </h2>
+              <p style={{ color: "#64748b" }}>
+                {isDeliveryBoy
+                  ? "Manage assigned deliveries, schedule and profile"
+                  : "Manage milk distribution and customers"}
+              </p>
             </div>
           </div>
-          <div className="topbar-actions">
-            <button
-              type="button"
-              onClick={() => navigate("/admin/dashboard")}
-              style={{
-                background: "#f1f5f9",
-                color: "#334155",
-                border: "1px solid #cbd5e1",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#e2e8f0")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "#f1f5f9")}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6H4zM14 14h6v6h-6zM14 4h6v6h-6zM4 4h6v6H4z"/></svg>
-              Farm Admin
-            </button>
+          <div className="topbar-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <NotificationCenter onNavigateTab={handleTabChange} />
+            {isDeliveryBoy && (
+              <button
+                type="button"
+                onClick={() => handleTabChange("my-profile")}
+                style={{
+                  background: activeTab === "my-profile" ? "#1e3a8a" : "#eff6ff",
+                  color: activeTab === "my-profile" ? "white" : "#1e40af",
+                  border: "1px solid #bfdbfe",
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontWeight: "600",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                👤 {adminData?.name || "My Profile"}
+              </button>
+            )}
+            {!isDeliveryBoy && (
+              <button
+                type="button"
+                onClick={() => navigate("/admin/dashboard")}
+                style={{
+                  background: "#f1f5f9",
+                  color: "#334155",
+                  border: "1px solid #cbd5e1",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#e2e8f0")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6H4zM14 14h6v6h-6zM14 4h6v6H4z" /></svg>
+                Farm Admin
+              </button>
+            )}
           </div>
         </header>
 
         <section className="admin-content" style={{ padding: "24px" }}>
+          {/* Actionable Special Dashboard Alerts */}
+          <SpecialAlertsBanner onNavigateTab={handleTabChange} userRole={isDeliveryBoy ? "DELIVERY_BOY" : "ADMIN"} />
           {activeTab === "dashboard" && (
             <div>
               <h3 style={{ fontSize: "1.5rem", color: "#1e293b", marginBottom: "20px" }}>Overview</h3>
@@ -198,9 +265,11 @@ const MilkAdminDashboard = () => {
                   {[
                     { id: "products", icon: "📦", label: "Manage Products" },
                     { id: "orders", icon: "🛒", label: "All Orders" },
-                    { id: "announcements", icon: "📢", label: "Send Announcements" },
+                    { id: "delivery", icon: "👥", label: "Delivery Boy Mgmt" },
+                    { id: "delivery-leaves", icon: "🏖️", label: "Delivery Leaves" },
+                    { id: "reassignment-queue", icon: "🔄", label: "Reassignment Queue" },
                     { id: "staff-reports", icon: "📋", label: "Staff Reports" },
-                    { id: "delivery", icon: "👥", label: "Delivery Boy Mgmt" }
+                    { id: "announcements", icon: "📢", label: "Send Announcements" }
                   ].map((action) => (
                     <button
                       key={action.id}
@@ -239,18 +308,27 @@ const MilkAdminDashboard = () => {
               </div>
             </div>
           )}
-          
+
           {activeTab === "staff-reports" && <StaffMilkReportsView />}
           {activeTab === "orders" && <CustomerOrdersAdmin />}
           {activeTab === "products" && <ProductsAdmin />}
-          { activeTab === "subscriptions" && <MilkSubscriptionsAdmin /> }
-          { activeTab === "trials" && <MilkTrialsAdmin /> }
-          { activeTab === "delivery" && <DeliveryBoyManagement /> }
-          { activeTab === "my-deliveries" && <MyDeliveries /> }
-          { activeTab === "roles" && <RoleCreation /> }
-          { activeTab === "announcements" && <PaymentReminders /> }
+          {activeTab === "subscriptions" && <MilkSubscriptionsAdmin />}
+          {activeTab === "trials" && <MilkTrialsAdmin />}
+          {activeTab === "delivery" && <DeliveryBoyManagement onNavigateToLeaves={() => handleTabChange("delivery-leaves")} onNavigateToQueue={() => handleTabChange("reassignment-queue")} />}
+          {activeTab === "delivery-leaves" && <DeliveryLeavesAdmin onNavigateToQueue={() => handleTabChange("reassignment-queue")} />}
+          {activeTab === "reassignment-queue" && <DeliveryReassignmentQueue />}
+          {activeTab === "my-deliveries" && <MyDeliveries />}
+          {activeTab === "my-leaves" && <MyLeaves />}
+          {activeTab === "my-profile" && (
+            <DeliveryBoyProfile
+              onNavigateToDeliveries={() => handleTabChange("my-deliveries")}
+              onNavigateToLeaves={() => handleTabChange("my-leaves")}
+            />
+          )}
+          {activeTab === "roles" && <RoleCreation />}
+          {activeTab === "announcements" && <PaymentReminders />}
 
-          {activeTab !== "dashboard" && activeTab !== "staff-reports" && activeTab !== "orders" && activeTab !== "products" && activeTab !== "subscriptions" && activeTab !== "trials" && activeTab !== "delivery" && activeTab !== "my-deliveries" && activeTab !== "roles" && activeTab !== "announcements" && (
+          {activeTab !== "dashboard" && activeTab !== "staff-reports" && activeTab !== "orders" && activeTab !== "products" && activeTab !== "subscriptions" && activeTab !== "trials" && activeTab !== "delivery" && activeTab !== "delivery-leaves" && activeTab !== "reassignment-queue" && activeTab !== "my-deliveries" && activeTab !== "my-leaves" && activeTab !== "my-profile" && activeTab !== "roles" && activeTab !== "announcements" && (
             <div style={{ background: "white", padding: "40px", borderRadius: "16px", textAlign: "center", border: "1px dashed #cbd5e1" }}>
               <h3 style={{ color: "#475569", textTransform: "capitalize" }}>{activeTab} Module Coming Soon</h3>
             </div>
