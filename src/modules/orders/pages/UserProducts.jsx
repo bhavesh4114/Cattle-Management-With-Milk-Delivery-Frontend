@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 import UserOrderTracking from './UserOrderTracking';
+import MilkDeliveryRequestsCustomer from '../../milk-admin/pages/requests/MilkDeliveryRequestsCustomer';
 import AlertPopup from '../components/AlertPopup';
 import NotificationCenter from '../../../components/notifications/NotificationCenter';
 import SpecialAlertsBanner from '../../../components/notifications/SpecialAlertsBanner';
@@ -10,6 +11,7 @@ const UserProducts = () => {
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState({ text: '', type: '' });
     const [showOrders, setShowOrders] = useState(false);
+    const [showRequests, setShowRequests] = useState(false);
 
     // Modal states
     const [selectedProduct, setSelectedProduct] = useState(null);
@@ -167,6 +169,10 @@ const UserProducts = () => {
         }
     };
 
+    if (showRequests) {
+        return <MilkDeliveryRequestsCustomer onBack={() => setShowRequests(false)} />;
+    }
+
     if (showOrders) {
         return <UserOrderTracking onBack={() => setShowOrders(false)} />;
     }
@@ -190,6 +196,9 @@ const UserProducts = () => {
                 </p>
                 <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <NotificationCenter />
+                    <button onClick={() => setShowRequests(true)} style={{ background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.5)', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🥛 Delivery Request
+                    </button>
                     <button onClick={() => setShowOrders(true)} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         📦 My Orders
                     </button>

@@ -488,16 +488,74 @@ const MyDeliveries = () => {
                   {group.order?.address || "N/A"}
                 </div>
 
-                <div style={{ background: "#f8fafc", padding: "10px", borderRadius: "8px", marginBottom: "12px" }}>
-                  {group.items.map((item, idx) => (
-                    <div key={idx} style={{ fontSize: "13px", color: "#334155", marginBottom: "4px" }}>
-                      📦 {item?.milkType || item?.product?.name || "Milk"}:{" "}
-                      <strong>
-                        {item?.dailyQuantity || 1}{" "}
-                        {item?.product?.unit || (item?.milkType?.toLowerCase().includes("milk") ? "L" : "Qty")}
-                      </strong>
+                <div
+                  style={{
+                    background: group.isSkipped ? "#fff7ed" : group.hasExtraMilk ? "#f0fdf4" : "#f8fafc",
+                    border: group.isSkipped ? "1px solid #fed7aa" : group.hasExtraMilk ? "1px solid #bbf7d0" : "1px solid #e2e8f0",
+                    padding: "12px",
+                    borderRadius: "10px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {group.isSkipped ? (
+                    <div>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background: "#ea580c",
+                          color: "white",
+                          padding: "3px 10px",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: "700",
+                        }}
+                      >
+                        🚫 SKIPPED – Customer Not At Home
+                      </div>
+                      <div style={{ fontSize: "13px", color: "#9a3412", marginTop: "6px", fontWeight: "700" }}>
+                        Delivery Quantity: 0 Liter (Do not deliver)
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                        Regular Quantity was: {group.order?.dailyQuantity || 1} L (Paused by customer request)
+                      </div>
                     </div>
-                  ))}
+                  ) : group.hasExtraMilk ? (
+                    <div>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background: "#0284c7",
+                          color: "white",
+                          padding: "3px 10px",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: "700",
+                        }}
+                      >
+                        🥛 Extra Milk Approved (+{group.extraQuantity}L)
+                      </div>
+                      <div style={{ fontSize: "14px", color: "#166534", marginTop: "6px", fontWeight: "800" }}>
+                        Total Delivery: {group.effectiveQuantity} Liter(s)
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                        Regular: {group.order?.dailyQuantity || 1}L + Extra: {group.extraQuantity}L
+                      </div>
+                    </div>
+                  ) : (
+                    group.items.map((item, idx) => (
+                      <div key={idx} style={{ fontSize: "13px", color: "#334155", marginBottom: "4px" }}>
+                        📦 {item?.milkType || item?.product?.name || "Milk"}:{" "}
+                        <strong>
+                          {item?.dailyQuantity || 1}{" "}
+                          {item?.product?.unit || (item?.milkType?.toLowerCase().includes("milk") ? "L" : "Qty")}
+                        </strong>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div

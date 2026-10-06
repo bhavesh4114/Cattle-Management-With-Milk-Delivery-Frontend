@@ -15,6 +15,7 @@ import DeliveryLeavesAdmin from "./DeliveryLeavesAdmin";
 import DeliveryReassignmentQueue from "./DeliveryReassignmentQueue";
 import RoleCreation from "../../roles/pages/RoleCreation";
 import PaymentReminders from "../../orders/components/PaymentReminders";
+import MilkDeliveryRequestsAdmin from "./requests/MilkDeliveryRequestsAdmin";
 import NotificationCenter from "../../../components/notifications/NotificationCenter";
 import SpecialAlertsBanner from "../../../components/notifications/SpecialAlertsBanner";
 
@@ -134,6 +135,7 @@ const MilkAdminDashboard = () => {
             { id: "dashboard", icon: "📊", label: "Dashboard" },
             { id: "products", icon: "📦", label: "Products" },
             { id: "orders", icon: "🛒", label: "Customer Orders" },
+            { id: "milk-requests", icon: "📝", label: "Milk Requests" },
             { id: "staff-reports", icon: "📋", label: "Staff Reports" },
             { id: "delivery", icon: "👥", label: "Delivery Boy Mgmt" },
             { id: "delivery-leaves", icon: "🏖️", label: "Delivery Leaves" },
@@ -311,6 +313,7 @@ const MilkAdminDashboard = () => {
 
           {activeTab === "staff-reports" && <StaffMilkReportsView />}
           {activeTab === "orders" && <CustomerOrdersAdmin />}
+          {activeTab === "milk-requests" && <MilkDeliveryRequestsAdmin />}
           {activeTab === "products" && <ProductsAdmin />}
           {activeTab === "subscriptions" && <MilkSubscriptionsAdmin />}
           {activeTab === "trials" && <MilkTrialsAdmin />}

@@ -31,6 +31,7 @@ import RoleCreation from "../../roles/pages/RoleCreation";
 import StaffMilkReportEntry from "../../milk-admin/pages/StaffMilkReportEntry";
 import MyDeliveries from "../../milk-admin/pages/MyDeliveries";
 import DeliveryBoyManagement from "../../milk-admin/pages/DeliveryBoyManagement";
+import MilkDeliveryRequestsCustomer from "../../milk-admin/pages/requests/MilkDeliveryRequestsCustomer";
 import { hasPermission } from "../../../utils/permissions";
 
 const uiIcons = {
@@ -121,6 +122,12 @@ const sections = [
     label: "All Products",
     icon: "\uD83D\uDCE6",
     path: "/admin/products",
+  },
+  {
+    key: "milk-requests",
+    label: "Milk Delivery Request",
+    icon: "🥛",
+    path: "/admin/milk-delivery-requests",
   },
 ];
 
@@ -1134,8 +1141,8 @@ const AdminDashboard = () => {
             if (section.key === "delivery-boys") {
               return adminData?.role === "ADMIN";
             }
-            if (section.key === "products") {
-              return adminData?.role === "CUSTOM" && (adminData?.name?.toLowerCase().includes("user") || adminData?.customRole?.name?.toLowerCase().includes("user"));
+            if (section.key === "products" || section.key === "milk-requests") {
+              return adminData?.role === "ADMIN" || (adminData?.role === "CUSTOM" && (adminData?.name?.toLowerCase().includes("user") || adminData?.customRole?.name?.toLowerCase().includes("user")));
             }
             return hasPermission(adminData, section.key, "view");
           }).map((section) => (
@@ -1226,9 +1233,9 @@ const AdminDashboard = () => {
             } else if (requiredPermission === "my-deliveries") {
               const rn = (adminData?.customRole?.name || "").toLowerCase();
               hasAccess = hasPermission(adminData, "my-deliveries", "view") || rn.includes("delivery") || rn.includes("delever");
-            } else if (requiredPermission === "products") {
+            } else if (requiredPermission === "products" || requiredPermission === "milk-requests") {
               const isUser = adminData?.role === "CUSTOM" && (adminData?.name?.toLowerCase().includes("user") || adminData?.customRole?.name?.toLowerCase().includes("user"));
-              hasAccess = isUser ? true : hasPermission(adminData, requiredPermission, "view");
+              hasAccess = adminData?.role === "ADMIN" || isUser || hasPermission(adminData, requiredPermission, "view");
             } else {
               hasAccess = hasPermission(adminData, requiredPermission, "view");
             }
@@ -1328,6 +1335,7 @@ const AdminDashboard = () => {
                 {currentActive === "items" && <Items />}
                 {currentActive === "orders" && <Orders />}
                 {currentActive === "products" && <UserProducts />}
+                {currentActive === "milk-requests" && <MilkDeliveryRequestsCustomer />}
 
                 {currentActive === "reports" && <Report />}
 
