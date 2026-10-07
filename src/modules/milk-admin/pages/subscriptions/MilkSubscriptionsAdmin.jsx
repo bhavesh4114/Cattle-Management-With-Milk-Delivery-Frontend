@@ -337,8 +337,13 @@ const MilkSubscriptionsAdmin = () => {
                                         background: s.status === 'ACTIVE' ? '#dcfce3' : s.status === 'REJECTED' || s.status === 'CANCELLED' ? '#fee2e2' : '#fef3c7',
                                         color: s.status === 'ACTIVE' ? '#166534' : s.status === 'REJECTED' || s.status === 'CANCELLED' ? '#b91c1c' : '#d97706'
                                     }}>
-                                        {s.status.replace(/_/g, ' ')}
+                                        {s.status === 'CANCELLED' ? '❌ CANCELLED BY USER' : s.status.replace(/_/g, ' ')}
                                     </span>
+                                    {s.notes && (
+                                        <div style={{ fontSize: '11px', color: s.status === 'CANCELLED' ? '#b91c1c' : '#64748b', marginTop: '4px', fontStyle: s.status === 'CANCELLED' ? 'italic' : 'normal' }}>
+                                            {s.notes}
+                                        </div>
+                                    )}
                                 </td>
                                 <td style={{ padding: '12px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -384,7 +389,12 @@ const MilkSubscriptionsAdmin = () => {
                                     </div>
                                 </td>
                                 <td style={{ padding: '12px' }}>
-                                    {(s.status === 'PENDING_ADMIN' || s.status.toUpperCase().includes('PENDING')) && (
+                                    {s.status === 'CANCELLED' && (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: '#fee2e2', borderRadius: '6px', color: '#991b1b', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>
+                                            ⚠️ Cancelled by Customer
+                                        </div>
+                                    )}
+                                    {(s.status === 'PENDING_ADMIN' || (s.status.toUpperCase().includes('PENDING') && s.status !== 'CANCELLED')) && (
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                             <button onClick={() => handleGroupAction(s.ids, 'ACCEPT', { startDate: s.requestedStartDate, endDate: s.requestedEndDate })} style={{ padding: '4px 8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Accept As-is</button>
                                             <button onClick={() => setProposeModal({ isOpen: true, ids: s.ids, startDate: s.requestedStartDate.split('T')[0], endDate: s.requestedEndDate.split('T')[0] })} style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Change Dates</button>

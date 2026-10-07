@@ -123,14 +123,24 @@ const MilkTrialsAdmin = () => {
                                 <td style={{ padding: '12px' }}>
                                     <span style={{
                                         padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold',
-                                        background: t.status === 'PENDING_ADMIN' ? '#fef3c7' : t.status === 'ACTIVE' ? '#dbeafe' : t.status === 'REJECTED' ? '#fee2e2' : '#dcfce3',
-                                        color: t.status === 'PENDING_ADMIN' ? '#d97706' : t.status === 'ACTIVE' ? '#1d4ed8' : t.status === 'REJECTED' ? '#b91c1c' : '#166534'
+                                        background: t.status === 'PENDING_ADMIN' ? '#fef3c7' : t.status === 'ACTIVE' ? '#dbeafe' : t.status === 'CANCELLED' || t.status === 'REJECTED' ? '#fee2e2' : '#dcfce3',
+                                        color: t.status === 'PENDING_ADMIN' ? '#d97706' : t.status === 'ACTIVE' ? '#1d4ed8' : t.status === 'CANCELLED' || t.status === 'REJECTED' ? '#b91c1c' : '#166534'
                                     }}>
-                                        {t.status.replace(/_/g, ' ')}
+                                        {t.status === 'CANCELLED' ? '❌ CANCELLED BY USER' : t.status.replace(/_/g, ' ')}
                                     </span>
+                                    {t.notes && (
+                                        <div style={{ fontSize: '11px', color: t.status === 'CANCELLED' ? '#b91c1c' : '#64748b', marginTop: '4px', fontStyle: t.status === 'CANCELLED' ? 'italic' : 'normal' }}>
+                                            {t.notes}
+                                        </div>
+                                    )}
                                 </td>
                                 <td style={{ padding: '12px' }}>
-                                    {(t.status === 'PENDING_ADMIN' || t.status.toUpperCase().includes('PENDING')) && (
+                                    {t.status === 'CANCELLED' && (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: '#fee2e2', borderRadius: '6px', color: '#991b1b', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>
+                                            ⚠️ Cancelled by Customer
+                                        </div>
+                                    )}
+                                    {(t.status === 'PENDING_ADMIN' || (t.status.toUpperCase().includes('PENDING') && t.status !== 'CANCELLED')) && (
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                             <button onClick={() => updateStatus(t.id, 'ACTIVE')} style={{ padding: '4px 8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Activate Trial</button>
                                             <button onClick={() => updateStatus(t.id, 'REJECTED')} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Reject</button>

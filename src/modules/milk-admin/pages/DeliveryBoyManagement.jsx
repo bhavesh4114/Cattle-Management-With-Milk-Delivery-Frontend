@@ -46,15 +46,31 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
       // Filter only orders whose pincode matches the delivery boy's assigned pincodes
       const boyPincodes = (boy.profile?.pincodes || []).map(p => String(p).trim());
       const filterByPincode = (orders, type) => {
-        let filtered = orders;
-        // For subscriptions: only show PAID + ACTIVE orders (payment gate)
+        let filtered = orders || [];
+        // Never include cancelled, rejected, or completed orders
+        filtered = filtered.filter(o => {
+          const st = String(o.status || '').toUpperCase();
+          const dst = String(o.deliveryStatus || '').toUpperCase();
+          return st !== 'CANCELLED' && st !== 'REJECTED' && st !== 'COMPLETED' && dst !== 'CANCELLED' && dst !== 'DELIVERED';
+        });
+
+        // For subscriptions: only show PAID + ACTIVE orders
         if (type === 'sub') {
           filtered = filtered.filter(o => {
             const isPaid = o.paymentStatus === 'PAID' || o.paymentStatus === 'CASH_PENDING';
-            const isActive = o.status === 'ACTIVE';
+            const isActive = String(o.status || '').toUpperCase() === 'ACTIVE';
             return isPaid && isActive;
           });
         }
+
+        // For trials (Single Day): only show ACTIVE / approved orders (exclude PENDING_ADMIN and CANCELLED)
+        if (type === 'trial') {
+          filtered = filtered.filter(o => {
+            const st = String(o.status || '').toUpperCase();
+            return st === 'ACTIVE';
+          });
+        }
+
         // Pincode filter
         if (boyPincodes.length > 0) {
           filtered = filtered.filter(o => boyPincodes.includes(String(o.pincode || '').trim()));
@@ -472,7 +488,11 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {Object.values((assignModal.activeTab === 'sub' ? assignModal.subs : assignModal.trials)
-                    .filter(o => o.status !== "Cancelled" && o.status !== "Completed" && o.status !== "Rejected")
+                    .filter(o => {
+                      const st = String(o.status || '').toUpperCase();
+                      const dst = String(o.deliveryStatus || '').toUpperCase();
+                      return st !== 'CANCELLED' && st !== 'REJECTED' && st !== 'COMPLETED' && dst !== 'CANCELLED' && dst !== 'DELIVERED';
+                    })
                     .reduce((acc, o) => {
                         const key = `${o.customerName}_${o.phone}_${o.address}`;
                         if (!acc[key]) acc[key] = { ...o, items: [], ids: [], allAssignedToThis: true, assignedToOther: false };
@@ -511,7 +531,11 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
                       </div>
                     );
                   })}
-                  {(assignModal.activeTab === 'sub' ? assignModal.subs : assignModal.trials).filter(o => o.status !== "Cancelled" && o.status !== "Completed" && o.status !== "Rejected").length === 0 && (
+                  {(assignModal.activeTab === 'sub' ? assignModal.subs : assignModal.trials).filter(o => {
+                    const st = String(o.status || '').toUpperCase();
+                    const dst = String(o.deliveryStatus || '').toUpperCase();
+                    return st !== 'CANCELLED' && st !== 'REJECTED' && st !== 'COMPLETED' && dst !== 'CANCELLED' && dst !== 'DELIVERED';
+                  }).length === 0 && (
                     <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
                       <div style={{ fontSize: "36px", marginBottom: "8px" }}>📍</div>
                       <div style={{ fontWeight: "600", fontSize: "15px", marginBottom: "4px" }}>No matching orders found</div>
