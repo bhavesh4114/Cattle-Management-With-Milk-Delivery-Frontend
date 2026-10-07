@@ -125,6 +125,43 @@ const UserOrderTracking = ({ onBack }) => {
     }
   };
 
+  const handleCancelOrder = async (group) => {
+    const isSingle = group.orderCategory === 'trial';
+    const confirmMsg = `Are you sure you want to cancel this ${isSingle ? 'Single Day' : 'Subscription'} milk order?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await api.post('/milk-module/order/cancel', {
+        orderCategory: group.orderCategory,
+        ids: group.ids,
+        reason: 'Cancelled by customer'
+      });
+      showToast('Order cancelled successfully.');
+      fetchOrders();
+    } catch (e) {
+      console.error(e);
+      showToast(e.response?.data?.message || 'Failed to cancel order', 'error');
+    }
+  };
+
+  const handleDeleteCancelledOrder = async (group) => {
+    if (!window.confirm("Remove this cancelled order from your list?")) return;
+    try {
+      for (const id of group.ids) {
+        if (group.orderCategory === 'trial') {
+          await api.delete(`/milk-module/trial/${id}`);
+        } else {
+          await api.delete(`/milk-module/subscription/${id}`);
+        }
+      }
+      showToast('Order removed from list.');
+      fetchOrders();
+    } catch (e) {
+      console.error(e);
+      showToast(e.response?.data?.message || 'Failed to remove order', 'error');
+    }
+  };
+
   const submitPayment = async () => {
     setPaying(true);
     try {
@@ -352,6 +389,7 @@ const UserOrderTracking = ({ onBack }) => {
               const statusInfo = STATUS_COLORS[group.status] || { bg: '#f1f5f9', color: '#475569', label: group.status };
               const isAwaitingCustomer = group.status === 'AWAITING_CUSTOMER';
               const isAwaitingPayment = group.status === 'AWAITING_PAYMENT';
+              const isPendingAdmin = group.status === 'PENDING_ADMIN';
               const isRejected = group.status === 'REJECTED' || group.status === 'CANCELLED';
               const startDate = group.requestedStartDate || group.startDate;
               const endDate = group.requestedEndDate || group.endDate;
@@ -388,7 +426,7 @@ const UserOrderTracking = ({ onBack }) => {
                   </div>
 
                   <div style={{ padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', marginBottom: (isAwaitingCustomer || isAwaitingPayment || isRejected) ? '20px' : '0' }}>
+                    <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', marginBottom: (isAwaitingCustomer || isAwaitingPayment || isPendingAdmin || isRejected) ? '20px' : '0' }}>
                       <div>
                         <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#94a3b8', marginBottom: '4px', textTransform: 'uppercase' }}>Requested Dates</div>
                         <div style={{ fontWeight: '700', color: isAwaitingCustomer ? '#94a3b8' : '#0f172a', textDecoration: isAwaitingCustomer ? 'line-through' : 'none' }}>
@@ -413,6 +451,24 @@ const UserOrderTracking = ({ onBack }) => {
                       )}
                     </div>
 
+                    {isPendingAdmin && (
+                      <div style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', borderRadius: '14px', padding: '16px 20px', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '1.4rem' }}>⏳</span>
+                          <div>
+                            <div style={{ fontWeight: '800', color: '#92400e', fontSize: '0.95rem' }}>Waiting for Admin Review</div>
+                            <div style={{ color: '#b45309', fontSize: '0.85rem' }}>Your order is in review. You can cancel it anytime before approval.</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleCancelOrder(group)}
+                          style={{ padding: '10px 20px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(239, 68, 68, 0.25)' }}
+                        >
+                          ✕ Cancel Order
+                        </button>
+                      </div>
+                    )}
+
                     {isAwaitingCustomer && (
                       <div style={{ background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', borderRadius: '14px', padding: '20px', border: '1px solid #c4b5fd' }}>
                         <div style={{ fontWeight: '800', color: '#5b21b6', marginBottom: '6px' }}>Admin wants to change your delivery dates</div>
@@ -433,12 +489,15 @@ const UserOrderTracking = ({ onBack }) => {
                     {isAwaitingPayment && (
                       <div style={{ background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', borderRadius: '14px', padding: '20px', border: '1px solid #93c5fd' }}>
                         <div style={{ fontWeight: '800', color: '#1e40af', marginBottom: '16px' }}>Order approved! Complete your payment to confirm delivery.</div>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                          <button onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('ONLINE'); }} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          <button onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('ONLINE'); }} style={{ flex: 1, minWidth: '140px', padding: '12px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
                             Pay Online (UPI/Card)
                           </button>
-                          <button onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('CASH'); }} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
+                          <button onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('CASH'); }} style={{ flex: 1, minWidth: '140px', padding: '12px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
                             Pay Cash
+                          </button>
+                          <button onClick={() => handleCancelOrder(group)} style={{ padding: '12px 18px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
+                            ✕ Cancel Order
                           </button>
                         </div>
                       </div>
@@ -475,14 +534,29 @@ const UserOrderTracking = ({ onBack }) => {
                             <button onClick={() => downloadBill(group)} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}>
                               📄 Download Invoice
                             </button>
+                            {group.deliveryStatus !== 'Delivered' && group.deliveryStatus !== 'Completed' && (
+                              <button
+                                onClick={() => handleCancelOrder(group)}
+                                style={{ alignSelf: 'flex-start', padding: '6px 12px', background: 'transparent', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '6px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}
+                              >
+                                ✕ Cancel Order
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
                     )}
 
                     {isRejected && (
-                      <div style={{ background: '#fef2f2', borderRadius: '14px', padding: '16px 20px', border: '1px solid #fca5a5', color: '#991b1b', fontWeight: '600' }}>
-                        This order was cancelled. You may place a new order from the products page.
+                      <div style={{ background: '#fef2f2', borderRadius: '14px', padding: '16px 20px', border: '1px solid #fca5a5', color: '#991b1b', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>This order was cancelled. You may place a new order from the products page.</div>
+                        <button
+                          onClick={() => handleDeleteCancelledOrder(group)}
+                          style={{ padding: '8px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          title="Delete cancelled order from view"
+                        >
+                          🗑️ Remove
+                        </button>
                       </div>
                     )}
                   </div>
