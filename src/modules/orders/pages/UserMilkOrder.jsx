@@ -5,9 +5,15 @@ import autoTable from 'jspdf-autotable';
 
 const UserMilkOrder = () => {
   const [orderType, setOrderType] = useState('Monthly'); // 'Trial', 'Monthly'
+  const adminData = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('adminData') || '{}');
+    } catch { return {}; }
+  })();
+
   const [form, setForm] = useState({
-    customerName: '',
-    phone: '',
+    customerName: adminData?.name || '',
+    phone: adminData?.mobile || adminData?.phone || '',
     address: '',
     pincode: '',
     milkType: 'Cow Milk',
@@ -303,7 +309,7 @@ const UserMilkOrder = () => {
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '20px' }}>
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>Name</label>
-                <input type="text" required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Enter your full name" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} />
+                <input type="text" required readOnly={!!adminData?.name} value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Enter your full name" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: adminData?.name ? '#f1f5f9' : 'white', cursor: adminData?.name ? 'not-allowed' : 'text' }} />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>Phone</label>
@@ -766,10 +772,54 @@ const UserMilkOrder = () => {
                   </div>
 
                   {/* Delivered message */}
-                  {trackModal.data.deliveryStatus === 'Delivered' && (
-                    <div style={{ marginTop: '20px', padding: '16px', background: '#f0fdf4', borderRadius: '12px', textAlign: 'center', border: '1px solid #86efac' }}>
-                      <div style={{ fontSize: '24px', marginBottom: '6px' }}>✅</div>
-                      <div style={{ fontWeight: '700', color: '#15803d' }}>Your milk order has been delivered successfully!</div>
+                  {['Delivered', 'DELIVERED'].includes(trackModal.data.deliveryStatus) && (
+                    <div style={{ marginTop: '20px', padding: '18px 20px', background: '#f0fdf4', borderRadius: '16px', textAlign: 'center', border: '1px solid #86efac', boxShadow: '0 4px 14px rgba(22,163,74,0.12)' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
+                      <div style={{ fontWeight: '800', color: '#15803d', fontSize: '16px' }}>Your milk order has been delivered successfully!</div>
+                      <div style={{ fontSize: '13px', color: '#166534', marginTop: '6px', marginBottom: '16px' }}>
+                        Order delivery confirmed successfully and synced with Admin and Delivery partner.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            if (trackModal.data?.orderId) {
+                              await api.post(`/delivery/${trackModal.data.orderId}/confirm`, { orderType: trackModal.data.orderType }).catch(() => {});
+                            }
+                          } finally {
+                            showToast('Order completed & confirmed successfully! ✓');
+                            window.dispatchEvent(new CustomEvent('delivery-status-updated', { detail: { orderId: trackModal.data?.orderId, orderType: trackModal.data?.orderType } }));
+                            window.dispatchEvent(new CustomEvent('refresh-notifications'));
+                            setTrackModal({ isOpen: false, data: null, loading: false });
+                            try {
+                              const url = new URL(window.location.href);
+                              url.searchParams.delete('tab');
+                              url.searchParams.delete('orderId');
+                              url.searchParams.delete('orderType');
+                              window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+                            } catch (e) {}
+                            fetchData();
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '13px 20px',
+                          background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontWeight: '800',
+                          fontSize: '15px',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 14px rgba(22,163,74,0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        ✅ OK / Close
+                      </button>
                     </div>
                   )}
                 </>

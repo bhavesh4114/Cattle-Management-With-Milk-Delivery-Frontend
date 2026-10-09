@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../../services/api';
 import UserOrderTracking from './UserOrderTracking';
 import MilkDeliveryRequestsCustomer from '../../milk-admin/pages/requests/MilkDeliveryRequestsCustomer';
@@ -7,11 +8,13 @@ import NotificationCenter from '../../../components/notifications/NotificationCe
 import SpecialAlertsBanner from '../../../components/notifications/SpecialAlertsBanner';
 
 const UserProducts = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState({ text: '', type: '' });
     const [showOrders, setShowOrders] = useState(false);
     const [showRequests, setShowRequests] = useState(false);
+    const [targetTrackOrder, setTargetTrackOrder] = useState(null);
 
     // Modal states
     const [selectedProduct, setSelectedProduct] = useState(null);
@@ -26,13 +29,19 @@ const UserProducts = () => {
     });
     const [showCart, setShowCart] = useState(false);
 
+    const adminData = (() => {
+        try {
+            return JSON.parse(localStorage.getItem('adminData') || '{}');
+        } catch { return {}; }
+    })();
+
     const [orderType, setOrderType] = useState('Single'); // 'Single' or 'Subscription'
     const [form, setForm] = useState({
         quantity: 1,
         startDate: new Date().toISOString().split('T')[0],
         endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-        customerName: '',
-        phone: '',
+        customerName: adminData?.name || '',
+        phone: adminData?.mobile || adminData?.phone || '',
         address: '',
         pincode: '',
         notes: ''
@@ -51,18 +60,59 @@ const UserProducts = () => {
         fetchMyOrders();
     }, []);
 
+    const [hasActiveMonthlySub, setHasActiveMonthlySub] = useState(false);
+
     const fetchMyOrders = async () => {
         try {
-            const [subRes, trialRes] = await Promise.all([
+            const [subRes, trialRes, ctxRes] = await Promise.all([
                 api.get('/milk-module/subscription/my-subscriptions').catch(() => ({ data: [] })),
-                api.get('/milk-module/trial/my-trials').catch(() => ({ data: [] }))
+                api.get('/milk-module/trial/my-trials').catch(() => ({ data: [] })),
+                api.get('/milk-delivery-requests/customer-context').catch(() => ({ data: {} }))
             ]);
             const all = [...(subRes.data || []), ...(trialRes.data || [])];
             setActiveOrders(all.filter(o => !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(o.status)));
+
+            // Has active monthly subscription: verified from customer-context or active sub list
+            const hasActive = !!ctxRes.data?.hasActiveSubscription || (subRes.data || []).some(s => s.status === 'ACTIVE');
+            setHasActiveMonthlySub(hasActive);
         } catch (e) {
             console.error(e);
         }
     };
+
+    // Watch query params: if tab=track or tab=orders or orderId is present, automatically open My Orders / Tracking
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        const qOrderId = searchParams.get('orderId');
+        const qOrderType = searchParams.get('orderType');
+
+        if (tab === 'track' || tab === 'orders' || qOrderId) {
+            setShowOrders(true);
+            if (qOrderId) {
+                setTargetTrackOrder({
+                    orderId: parseInt(qOrderId, 10) || qOrderId,
+                    orderType: qOrderType || 'trial'
+                });
+            }
+        }
+    }, [searchParams]);
+
+    // Listen for custom 'open-delivery-tracking' event from notifications or alerts
+    useEffect(() => {
+        const handleOpenTracking = (e) => {
+            const { orderId, orderType } = e.detail || {};
+            setShowOrders(true);
+            if (orderId) {
+                setTargetTrackOrder({
+                    orderId: parseInt(orderId, 10) || orderId,
+                    orderType: orderType || 'trial'
+                });
+            }
+        };
+
+        window.addEventListener('open-delivery-tracking', handleOpenTracking);
+        return () => window.removeEventListener('open-delivery-tracking', handleOpenTracking);
+    }, []);
 
     const fetchProducts = async () => {
         try {
@@ -113,11 +163,13 @@ const UserProducts = () => {
 
     const openCheckoutModal = (type) => {
         setOrderType(type);
-        setForm({
-            ...form,
+        setForm(prev => ({
+            ...prev,
+            customerName: adminData?.name || prev.customerName || '',
+            phone: adminData?.mobile || adminData?.phone || prev.phone || '',
             startDate: new Date().toISOString().split('T')[0],
             endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-        });
+        }));
         setSelectedProduct(true); // using this as a boolean to show checkout modal
     };
 
@@ -174,7 +226,16 @@ const UserProducts = () => {
     }
 
     if (showOrders) {
-        return <UserOrderTracking onBack={() => setShowOrders(false)} />;
+        return (
+            <UserOrderTracking
+                onBack={() => {
+                    setShowOrders(false);
+                    setTargetTrackOrder(null);
+                    setSearchParams({});
+                }}
+                initialTrackOrder={targetTrackOrder}
+            />
+        );
     }
 
     return (
@@ -196,9 +257,11 @@ const UserProducts = () => {
                 </p>
                 <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <NotificationCenter />
-                    <button onClick={() => setShowRequests(true)} style={{ background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.5)', color: '#38bdf8', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        🥛 Delivery Request
-                    </button>
+                    {hasActiveMonthlySub && (
+                        <button onClick={() => setShowRequests(true)} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: 'white', padding: '8px 18px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)' }}>
+                            🥛 Extra Delivery
+                        </button>
+                    )}
                     <button onClick={() => setShowOrders(true)} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         📦 My Orders
                     </button>
@@ -409,7 +472,7 @@ const UserProducts = () => {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>Your Name</label>
-                                        <input type="text" required value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '1rem', background: '#f8fafc', transition: 'border-color 0.2s' }} onFocus={e => e.target.style.borderColor = '#3b82f6'} onBlur={e => e.target.style.borderColor = '#cbd5e1'} />
+                                        <input type="text" required readOnly={!!adminData?.name} value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '1rem', background: adminData?.name ? '#f1f5f9' : '#f8fafc', cursor: adminData?.name ? 'not-allowed' : 'text', transition: 'border-color 0.2s' }} onFocus={e => e.target.style.borderColor = '#3b82f6'} onBlur={e => e.target.style.borderColor = '#cbd5e1'} />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>Phone Number</label>

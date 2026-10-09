@@ -7,12 +7,25 @@ const MilkTrialsAdmin = () => {
     const [pricing, setPricing] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewModal, setViewModal] = useState({ isOpen: false, data: null });
+    const [assignModal, setAssignModal] = useState({ isOpen: false, orderId: null, orderType: 'trial', currentDeliveryBoyId: null });
+    const [trackModal, setTrackModal] = useState({ isOpen: false, data: null, loading: false });
     const [toast, setToast] = useState({ text: '', type: '' });
     const [deliveryBoys, setDeliveryBoys] = useState([]);
 
     const showToast = (text, type = 'success') => {
         setToast({ text, type });
         setTimeout(() => setToast({ text: '', type: '' }), 4000);
+    };
+
+    const openTrackModal = async (id, orderType = 'trial') => {
+        setTrackModal({ isOpen: true, data: null, loading: true });
+        try {
+            const res = await api.get(`/delivery/track?orderType=${orderType}&orderId=${id}`);
+            setTrackModal({ isOpen: true, data: res.data, loading: false });
+        } catch (e) {
+            setTrackModal({ isOpen: false, data: null, loading: false });
+            showToast('Failed to load tracking details', 'error');
+        }
     };
 
     useEffect(() => {
@@ -147,8 +160,27 @@ const MilkTrialsAdmin = () => {
                                         </div>
                                     )}
                                     {t.status === 'ACTIVE' && (
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                            <button onClick={() => updateStatus(t.id, 'COMPLETED')} style={{ padding: '4px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Mark Completed</button>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                            {t.deliveryStatus === 'DELIVERED' || t.status === 'COMPLETED' ? (
+                                                <span style={{ padding: '4px 10px', background: '#dcfce7', color: '#166534', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold' }}>DELIVERED ✅</span>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => setAssignModal({ isOpen: true, orderId: t.id, orderType: 'trial', currentDeliveryBoyId: t.deliveryBoyId })}
+                                                        style={{ padding: '6px 10px', background: t.deliveryBoyId ? '#4f46e5' : '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                                                    >
+                                                        {t.deliveryBoyId ? '🔄 Reassign' : '🚚 Assign Delivery Boy'}
+                                                    </button>
+                                                    {t.deliveryBoyId && (
+                                                        <button
+                                                            onClick={() => openTrackModal(t.id, 'trial')}
+                                                            style={{ padding: '6px 10px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                                                        >
+                                                            🚴 Track Delivery
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                     <div style={{ marginTop: '8px' }}>
@@ -225,8 +257,188 @@ const MilkTrialsAdmin = () => {
                             </div>
                         </div>
                         
-                        <div style={{ background: '#f8fafc', padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ background: '#f8fafc', padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <button
+                                onClick={() => {
+                                    const oId = viewModal.data.id;
+                                    setViewModal({ isOpen: false, data: null });
+                                    openTrackModal(oId, 'trial');
+                                }}
+                                style={{ background: '#0284c7', color: 'white', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                🚴 Track Delivery Live
+                            </button>
                             <button onClick={() => setViewModal({ isOpen: false, data: null })} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)' }}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Assign Delivery Boy Modal */}
+            {assignModal.isOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1200, backdropFilter: 'blur(4px)', padding: '20px' }}>
+                    <div style={{ background: 'white', borderRadius: '16px', width: '90%', maxWidth: '580px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+                        <div style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', color: 'white', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>🚚 Assign Delivery Boy (Single Day)</h3>
+                            <button onClick={() => setAssignModal({ isOpen: false, orderId: null, orderType: 'trial', currentDeliveryBoyId: null })} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+                        </div>
+                        <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+                            <DeliveryAssignmentPanel
+                                orderType="trial"
+                                orderId={assignModal.orderId}
+                                currentDeliveryBoyId={assignModal.currentDeliveryBoyId}
+                                onAssigned={() => {
+                                    setAssignModal({ isOpen: false, orderId: null, orderType: 'trial', currentDeliveryBoyId: null });
+                                    fetchTrials();
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Admin Live Tracking Modal */}
+            {trackModal.isOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1300, backdropFilter: 'blur(4px)', padding: '20px' }}>
+                    <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '540px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)' }}>
+                        <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #0284c7)', color: 'white', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '800' }}>🚴 Live Delivery Tracking</h3>
+                                <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: '#bfdbfe' }}>Monitoring delivery lifecycle & real-time route</p>
+                            </div>
+                            <button onClick={() => setTrackModal({ isOpen: false, data: null, loading: false })} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                        </div>
+
+                        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                            {trackModal.loading ? (
+                                <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                                    <div>Loading live tracking data...</div>
+                                </div>
+                            ) : trackModal.data ? (
+                                <div>
+                                    {/* Order & Delivery Partner Card */}
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', marginBottom: '20px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                            <div>
+                                                <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '15px' }}>
+                                                    👤 {trackModal.data.customerName}
+                                                </div>
+                                                <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>
+                                                    📍 {trackModal.data.address} {trackModal.data.pincode ? `(${trackModal.data.pincode})` : ''}
+                                                </div>
+                                            </div>
+                                            <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', background: '#dbeafe', color: '#1d4ed8' }}>
+                                                {trackModal.data.deliveryStatus}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#334155', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                                            <div><strong>Product:</strong> {trackModal.data.productName || trackModal.data.milkType}</div>
+                                            <div><strong>Quantity:</strong> {trackModal.data.dailyQuantity} {trackModal.data.unit}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Delivery Boy Card */}
+                                    {trackModal.data.deliveryBoy && (
+                                        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '16px', marginBottom: '20px' }}>
+                                            <div style={{ fontWeight: '700', color: '#1e3a8a', fontSize: '14px', marginBottom: '8px' }}>
+                                                🚴 Assigned Delivery Partner
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '15px' }}>{trackModal.data.deliveryBoy.name}</div>
+                                                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>📱 {trackModal.data.deliveryBoy.mobile}</div>
+                                                </div>
+                                                {trackModal.data.isTrackingAvailable && (
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: '700' }}>🟢 Live on Route</div>
+                                                        {trackModal.data.estimatedMins !== null && (
+                                                            <div style={{ fontSize: '11px', color: '#64748b' }}>ETA: ~{trackModal.data.estimatedMins} mins ({trackModal.data.distanceKm} km)</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Timestamps Audit Box */}
+                                    {trackModal.data.timestamps && (
+                                        <div style={{ background: '#fdfefe', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', marginBottom: '20px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
+                                                🕒 Lifecycle Timestamps Audit
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '12px' }}>
+                                                <div>
+                                                    <strong style={{ color: '#475569' }}>Assigned:</strong>
+                                                    <div style={{ color: '#0f172a' }}>{trackModal.data.timestamps.assignedAt ? new Date(trackModal.data.timestamps.assignedAt).toLocaleString('en-GB') : '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <strong style={{ color: '#475569' }}>Product Collected:</strong>
+                                                    <div style={{ color: '#0f172a' }}>{trackModal.data.timestamps.productCollectedAt ? new Date(trackModal.data.timestamps.productCollectedAt).toLocaleString('en-GB') : '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <strong style={{ color: '#475569' }}>Out For Delivery:</strong>
+                                                    <div style={{ color: '#0f172a' }}>{trackModal.data.timestamps.outForDeliveryAt ? new Date(trackModal.data.timestamps.outForDeliveryAt).toLocaleString('en-GB') : '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <strong style={{ color: '#475569' }}>Arrived at Location:</strong>
+                                                    <div style={{ color: '#0f172a' }}>{trackModal.data.timestamps.arrivedAt ? new Date(trackModal.data.timestamps.arrivedAt).toLocaleString('en-GB') : '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <strong style={{ color: '#475569' }}>Handover Confirmed:</strong>
+                                                    <div style={{ color: '#0f172a' }}>{trackModal.data.timestamps.deliveryConfirmedAt ? new Date(trackModal.data.timestamps.deliveryConfirmedAt).toLocaleString('en-GB') : '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <strong style={{ color: '#475569' }}>Customer Confirmed:</strong>
+                                                    <div style={{ color: '#0f172a' }}>{trackModal.data.timestamps.customerConfirmedAt ? new Date(trackModal.data.timestamps.customerConfirmedAt).toLocaleString('en-GB') : '—'}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 7-Stage Interactive Lifecycle Timeline */}
+                                    <div style={{ marginTop: '16px' }}>
+                                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '14px' }}>
+                                            Delivery Lifecycle Stages
+                                        </div>
+                                        <div style={{ position: 'relative' }}>
+                                            {trackModal.data.timeline.map((step, idx) => {
+                                                const isLast = idx === trackModal.data.timeline.length - 1;
+                                                const isCurrent = step.done && (isLast || !trackModal.data.timeline[idx + 1]?.done);
+                                                return (
+                                                    <div key={step.key} style={{ display: 'flex', gap: '14px', paddingBottom: isLast ? 0 : '20px', position: 'relative' }}>
+                                                        {!isLast && (
+                                                            <div style={{ position: 'absolute', left: '17px', top: '36px', bottom: 0, width: '2px', background: step.done ? '#2563eb' : '#e2e8f0' }} />
+                                                        )}
+                                                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', zIndex: 1, background: step.done ? (isCurrent ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#dcfce7') : '#f1f5f9', color: step.done ? (isCurrent ? 'white' : '#16a34a') : '#94a3b8', border: step.done ? 'none' : '1px dashed #cbd5e1' }}>
+                                                            {step.done ? (isCurrent ? step.icon : '✓') : step.icon}
+                                                        </div>
+                                                        <div style={{ flex: 1, paddingTop: '6px' }}>
+                                                            <div style={{ fontWeight: isCurrent ? '800' : step.done ? '700' : '500', color: step.done ? '#0f172a' : '#94a3b8', fontSize: '14px' }}>
+                                                                {step.label}
+                                                            </div>
+                                                            <div style={{ fontSize: '12px', color: isCurrent ? '#2563eb' : '#64748b', marginTop: '2px' }}>
+                                                                {step.note}
+                                                            </div>
+                                                            {step.timestamp && (
+                                                                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                                                                    {new Date(step.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
+
+                        <div style={{ background: '#f8fafc', padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setTrackModal({ isOpen: false, data: null, loading: false })} style={{ padding: '8px 20px', background: '#334155', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}>
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>

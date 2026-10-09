@@ -1,60 +1,108 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 
+const STORAGE_KEY = 'dairy_dismissed_alert_ids';
+
+const getDismissedIds = () => {
+    try {
+        const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const session = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+        return Array.from(new Set([...local, ...session]));
+    } catch (e) {
+        return [];
+    }
+};
+
+const markDismissedLocal = (alertId) => {
+    try {
+        const list = getDismissedIds();
+        if (!list.includes(alertId)) {
+            const updated = [...list, alertId];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        }
+    } catch (e) {}
+};
+
 const AlertPopup = () => {
     const [alert, setAlert] = useState(null);
     const [working, setWorking] = useState(false);
 
     useEffect(() => {
+        let isMounted = true;
+
         const fetchAlerts = async () => {
             try {
                 const res = await api.get('/alerts/my-alerts');
+                if (!isMounted) return;
+
                 if (res.data && res.data.length > 0) {
-                    setAlert(res.data[0]);
+                    const dismissed = getDismissedIds();
+                    // STRICT FILTER: Popups are ONLY for explicit actionable alerts (DELIVERY_CONFIRMATION or CRITICAL alert).
+                    // Routine notifications (out for delivery, delivery assigned, booking confirmed, etc.) must NEVER popup.
+                    const actionableAlerts = res.data.filter(a => {
+                        if (!a || dismissed.includes(a.id)) return false;
+                        const isActionable = a.type === 'DELIVERY_CONFIRMATION' || (a.isSpecialAlert && a.priority === 'CRITICAL');
+                        return isActionable;
+                    });
+
+                    if (actionableAlerts.length > 0) {
+                        setAlert(actionableAlerts[0]);
+                    } else {
+                        setAlert(null);
+                    }
+                } else {
+                    setAlert(null);
                 }
             } catch (e) {
-                console.error('Failed to fetch alerts', e);
+                // Silently handle polling errors
             }
         };
 
         fetchAlerts();
-        const interval = setInterval(fetchAlerts, 30000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchAlerts, 15000);
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
     }, []);
 
     const handleDismiss = async () => {
         if (!alert) return;
+        const alertId = alert.id;
+        markDismissedLocal(alertId);
+        setAlert(null);
         try {
-            await api.put(`/alerts/${alert.id}/read`);
-            setAlert(null);
-            // Wait a moment and check for next alert
-            setTimeout(async () => {
-                const res = await api.get('/alerts/my-alerts');
-                if (res.data && res.data.length > 0) {
-                    setAlert(res.data[0]);
-                }
-            }, 1000);
+            await Promise.allSettled([
+                api.put(`/alerts/${alertId}/dismiss`),
+                api.put(`/alerts/${alertId}/read`)
+            ]);
         } catch (e) {
-            console.error('Failed to mark read', e);
+            console.error('Failed to dismiss alert', e);
         }
     };
 
     const handleDeliveryAction = async (action) => {
         if (!alert) return;
+        const alertId = alert.id;
         setWorking(true);
+        markDismissedLocal(alertId);
         try {
             if (action === 'confirm') {
                 await api.post(`/delivery/${alert.orderId}/confirm`, { orderType: alert.orderType });
-            } else {
+            } else if (action === 'issue') {
                 await api.post(`/delivery/${alert.orderId}/report-issue`, {
                     orderType: alert.orderType,
                     issue: 'Customer reported an issue from the delivery confirmation popup.'
                 });
             }
-            await api.put(`/alerts/${alert.id}/read`);
+            await Promise.allSettled([
+                api.put(`/alerts/${alertId}/dismiss`),
+                api.put(`/alerts/${alertId}/read`)
+            ]);
             setAlert(null);
         } catch (e) {
-            console.error('Delivery confirmation failed', e);
+            console.error('Delivery action failed', e);
         } finally {
             setWorking(false);
         }
@@ -64,31 +112,53 @@ const AlertPopup = () => {
 
     return (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)', padding: '20px' }}>
-            <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '440px', padding: '32px', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '440px', padding: '32px', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative' }}>
+                {/* Close Button (✕) so user can close and never see again */}
+                <button
+                    onClick={handleDismiss}
+                    title="Close"
+                    style={{ position: 'absolute', top: '16px', right: '16px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '16px', fontWeight: 'bold' }}
+                >
+                    ✕
+                </button>
+
                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#eff6ff', color: '#3b82f6', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
                     🔔
                 </div>
+
                 <h2 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '1.5rem', fontWeight: '800' }}>
-                    {alert.type === 'DELIVERY_CONFIRMATION' ? 'Delivery Confirmation' : 'Important Announcement'}
+                    {alert.type === 'DELIVERY_CONFIRMATION' ? 'Delivery Confirmation' : 'Important Alert'}
                 </h2>
-                <p style={{ margin: '0 0 28px 0', color: '#475569', fontSize: '1.05rem', lineHeight: '1.5' }}>
+
+                <p style={{ margin: '0 0 24px 0', color: '#475569', fontSize: '1.05rem', lineHeight: '1.5' }}>
                     {alert.message}
                 </p>
+
                 {alert.type === 'DELIVERY_CONFIRMATION' ? (
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    <div>
+                        <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                            <button
+                                onClick={() => handleDeliveryAction('issue')}
+                                disabled={working}
+                                style={{ flex: 1, padding: '14px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: working ? 'not-allowed' : 'pointer' }}
+                            >
+                                Report Issue
+                            </button>
+                            <button
+                                onClick={() => handleDeliveryAction('confirm')}
+                                disabled={working}
+                                style={{ flex: 1, padding: '14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: working ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}
+                            >
+                                {working ? 'Processing...' : 'Confirm Delivery'}
+                            </button>
+                        </div>
+                        {/* OK / Remind Later button so user can dismiss once and it will not pop up again */}
                         <button
-                            onClick={() => handleDeliveryAction('issue')}
+                            onClick={handleDismiss}
                             disabled={working}
-                            style={{ flex: 1, padding: '14px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: working ? 'not-allowed' : 'pointer' }}
+                            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '0.9rem', cursor: 'pointer', fontWeight: '600', padding: '6px 12px', textDecoration: 'underline' }}
                         >
-                            Report Issue
-                        </button>
-                        <button
-                            onClick={() => handleDeliveryAction('confirm')}
-                            disabled={working}
-                            style={{ flex: 1, padding: '14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: working ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}
-                        >
-                            Confirm Delivery
+                            OK / Dismiss for now
                         </button>
                     </div>
                 ) : (
@@ -96,7 +166,7 @@ const AlertPopup = () => {
                         onClick={handleDismiss}
                         style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}
                     >
-                        Got it!
+                        OK, Got it!
                     </button>
                 )}
             </div>
@@ -105,4 +175,3 @@ const AlertPopup = () => {
 };
 
 export default AlertPopup;
-

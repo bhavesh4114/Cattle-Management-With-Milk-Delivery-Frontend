@@ -17,10 +17,10 @@ const MyLeaves = () => {
   const [toast, setToast] = useState({ text: "", type: "" });
   const [filter, setFilter] = useState("ALL");
 
-  // Calculate minimum selectable start date: today + 3 calendar days (enforces 2-day advance rule)
+  // Calculate minimum selectable start date: today + 1 calendar day (enforces 1-day advance rule)
   const getMinStartDate = () => {
     const d = new Date();
-    d.setDate(d.getDate() + 3);
+    d.setDate(d.getDate() + 1);
     return d.toISOString().split("T")[0];
   };
 
@@ -196,7 +196,7 @@ const MyLeaves = () => {
         <span style={{ fontSize: "20px" }}>ℹ️</span>
         <div style={{ fontSize: "13.5px", lineHeight: "1.5" }}>
           <strong>Policy Notice:</strong> Leave must be requested at least{" "}
-          <strong>2 days in advance</strong> before the start date. Earliest date you can apply for is{" "}
+          <strong>1 day in advance</strong> before the start date. Earliest date you can apply for is{" "}
           <strong>{minStartDate}</strong>.
         </div>
       </div>
@@ -517,7 +517,7 @@ const MyLeaves = () => {
                   border: "1px solid #e2e8f0",
                 }}
               >
-                📌 <strong>Rule:</strong> Must be applied at least 2 days in advance. Start date cannot be earlier than{" "}
+                📌 <strong>Rule:</strong> Must be applied at least 1 day in advance. Start date cannot be earlier than{" "}
                 <strong>{minStartDate}</strong>.
               </div>
 

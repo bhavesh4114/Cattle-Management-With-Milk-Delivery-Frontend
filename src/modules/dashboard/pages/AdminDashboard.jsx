@@ -1141,8 +1141,11 @@ const AdminDashboard = () => {
             if (section.key === "delivery-boys") {
               return adminData?.role === "ADMIN";
             }
-            if (section.key === "products" || section.key === "milk-requests") {
+            if (section.key === "products") {
               return adminData?.role === "ADMIN" || (adminData?.role === "CUSTOM" && (adminData?.name?.toLowerCase().includes("user") || adminData?.customRole?.name?.toLowerCase().includes("user")));
+            }
+            if (section.key === "milk-requests") {
+              return adminData?.role === "ADMIN";
             }
             return hasPermission(adminData, section.key, "view");
           }).map((section) => (

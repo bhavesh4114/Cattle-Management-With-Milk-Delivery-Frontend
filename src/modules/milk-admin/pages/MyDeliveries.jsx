@@ -3,16 +3,26 @@ import api from "../../../services/api";
 
 const statusColors = {
   Assigned: { bg: "#dbeafe", color: "#1d4ed8", dot: "#3b82f6" },
-  Accepted: { bg: "#e0e7ff", color: "#4338ca", dot: "#6366f1" },
+  ASSIGNED: { bg: "#dbeafe", color: "#1d4ed8", dot: "#3b82f6" },
+  PRODUCT_COLLECTED: { bg: "#fef9c3", color: "#854d0e", dot: "#eab308" },
+  OUT_FOR_DELIVERY: { bg: "#fef3c7", color: "#b45309", dot: "#f59e0b" },
   "Out for Delivery": { bg: "#fef3c7", color: "#b45309", dot: "#f59e0b" },
-  QR_SCANNED: { bg: "#ccfbf1", color: "#0f766e", dot: "#14b8a6" },
-  AWAITING_USER_CONFIRMATION: { bg: "#ede9fe", color: "#6d28d9", dot: "#8b5cf6" },
-  PARTIALLY_DELIVERED: { bg: "#ffedd5", color: "#c2410c", dot: "#f97316" },
+  ARRIVED: { bg: "#ede9fe", color: "#6d28d9", dot: "#8b5cf6" },
+  DELIVERY_PENDING_CUSTOMER_CONFIRMATION: { bg: "#cffafe", color: "#0e7490", dot: "#06b6d4" },
+  AWAITING_USER_CONFIRMATION: { bg: "#cffafe", color: "#0e7490", dot: "#06b6d4" },
   Delivered: { bg: "#dcfce7", color: "#15803d", dot: "#22c55e" },
+  DELIVERED: { bg: "#dcfce7", color: "#15803d", dot: "#22c55e" },
   Rejected: { bg: "#fee2e2", color: "#b91c1c", dot: "#ef4444" },
 };
 
-const STATUS_FLOW = ["Assigned", "Out for Delivery", "QR_SCANNED", "AWAITING_USER_CONFIRMATION", "Delivered"];
+const STATUS_FLOW = [
+  "ASSIGNED",
+  "PRODUCT_COLLECTED",
+  "OUT_FOR_DELIVERY",
+  "ARRIVED",
+  "DELIVERY_PENDING_CUSTOMER_CONFIRMATION",
+  "DELIVERED"
+];
 
 const MyDeliveries = () => {
   const [deliveries, setDeliveries] = useState([]);
@@ -43,21 +53,32 @@ const MyDeliveries = () => {
   };
 
   useEffect(() => {
-    fetchDeliveries();
+    fetchDeliveries(true);
     fetchMyProfile();
     fetchAlerts();
     const interval = setInterval(() => {
+      fetchDeliveries(false);
       fetchMyProfile();
       fetchAlerts();
-    }, 30000);
-    return () => clearInterval(interval);
+    }, 4000);
+
+    const handleDeliveryUpdate = () => {
+      fetchDeliveries(false);
+      fetchAlerts();
+    };
+    window.addEventListener("delivery-status-updated", handleDeliveryUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("delivery-status-updated", handleDeliveryUpdate);
+    };
   }, []);
 
   const fetchAlerts = async () => {
     try {
       const res = await api.get("/alerts/my-alerts");
       setAlerts(res.data);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleDismissAlert = async (alertId) => {
@@ -69,15 +90,15 @@ const MyDeliveries = () => {
     }
   };
 
-  const fetchDeliveries = async () => {
+  const fetchDeliveries = async (showSpinner = false) => {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
       const res = await api.get("/delivery/my-deliveries");
       setDeliveries(res.data);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
@@ -97,14 +118,23 @@ const MyDeliveries = () => {
       } catch {
         setTodayStatus(prof?.dailyStatus || "Available");
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleUpdateStatus = async (assignmentIds, newStatus, notes) => {
     try {
+      let coords = {};
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 2500 }));
+          if (pos && pos.coords) {
+            coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          }
+        } catch (e) { }
+      }
       await Promise.all(
         assignmentIds.map((id) =>
-          api.put(`/delivery/status/${id}`, { deliveryStatus: newStatus, notes: notes || undefined })
+          api.put(`/delivery/status/${id}`, { deliveryStatus: newStatus, notes: notes || undefined, ...coords })
         )
       );
       showToast(`Status updated to ${newStatus}`);
@@ -113,7 +143,7 @@ const MyDeliveries = () => {
         setViewModal({ ...viewModal, data: { ...viewModal.data, deliveryStatus: newStatus } });
       }
     } catch (e) {
-      showToast("Failed to update status", "error");
+      showToast(e.response?.data?.message || "Failed to update status", "error");
     }
   };
 
@@ -215,13 +245,15 @@ const MyDeliveries = () => {
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "N/A";
 
   const activeCount = deliveries.filter(
-    (d) => d.deliveryStatus !== "Delivered" && d.deliveryStatus !== "Rejected"
+    (d) => !['Delivered', 'DELIVERED', 'Rejected', 'REJECTED'].includes(d.deliveryStatus)
   ).length;
-  const completedCount = deliveries.filter((d) => d.deliveryStatus === "Delivered").length;
+  const completedCount = deliveries.filter((d) => ['Delivered', 'DELIVERED'].includes(d.deliveryStatus)).length;
 
   const filteredDeliveries = deliveries.filter((d) => {
-    if (tabFilter === "ACTIVE") return d.deliveryStatus !== "Delivered" && d.deliveryStatus !== "Rejected";
-    if (tabFilter === "COMPLETED") return d.deliveryStatus === "Delivered";
+    const isDone = ['Delivered', 'DELIVERED'].includes(d.deliveryStatus);
+    const isRej = ['Rejected', 'REJECTED'].includes(d.deliveryStatus);
+    if (tabFilter === "ACTIVE") return !isDone && !isRej;
+    if (tabFilter === "COMPLETED") return isDone;
     return true;
   });
 
@@ -267,33 +299,18 @@ const MyDeliveries = () => {
                   todayStatus === "Available"
                     ? "#16a34a"
                     : todayStatus === "On Leave"
-                    ? "#b45309"
-                    : "#dc2626",
+                      ? "#b45309"
+                      : "#dc2626",
               }}
             >
               {todayStatus === "On Leave"
                 ? "🟡 On Leave"
                 : todayStatus === "Unavailable"
-                ? "🔴 Unavailable"
-                : "🟢 Available"}
+                  ? "🔴 Unavailable"
+                  : "🟢 Available"}
             </strong>
           </p>
         </div>
-        <button
-          onClick={() => setAvailModal({ isOpen: true })}
-          style={{
-            padding: "10px 20px",
-            background: "#2e6f40",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            fontSize: "14px",
-          }}
-        >
-          📅 Set My Availability
-        </button>
       </div>
 
       {/* Informational Assignment Alerts */}
@@ -401,8 +418,8 @@ const MyDeliveries = () => {
               {tabFilter === "COMPLETED"
                 ? "No completed deliveries in history yet."
                 : tabFilter === "ACTIVE"
-                ? "No active deliveries right now."
-                : "No deliveries found."}
+                  ? "No active deliveries right now."
+                  : "No deliveries found."}
             </div>
             <div style={{ fontSize: "13.5px", marginTop: "4px" }}>
               {tabFilter === "COMPLETED"
@@ -425,7 +442,7 @@ const MyDeliveries = () => {
             }, {})
           ).map((group) => {
             const sc = statusColors[group.deliveryStatus] || statusColors.Assigned;
-            const isDelivered = group.deliveryStatus === "Delivered";
+            const isDelivered = ['Delivered', 'DELIVERED'].includes(group.deliveryStatus);
 
             return (
               <div
@@ -584,6 +601,66 @@ const MyDeliveries = () => {
                   )}
                 </div>
 
+                {/* Primary Action Button Based on Current Status */}
+                {(() => {
+                  const cur = (group.deliveryStatus || '').toUpperCase().replace(/ /g, '_');
+                  if (cur === 'ASSIGNED') {
+                    return (
+                      <button
+                        onClick={() => handleUpdateStatus(group.ids, 'PRODUCT_COLLECTED')}
+                        style={{ width: "100%", padding: "10px", marginBottom: "8px", background: "#16a34a", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 2px 6px rgba(22,163,74,0.3)" }}
+                      >
+                        📦 Collect Product
+                      </button>
+                    );
+                  }
+                  if (cur === 'PRODUCT_COLLECTED') {
+                    return (
+                      <button
+                        onClick={() => handleUpdateStatus(group.ids, 'OUT_FOR_DELIVERY')}
+                        style={{ width: "100%", padding: "10px", marginBottom: "8px", background: "#2563eb", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 2px 6px rgba(37,99,235,0.3)" }}
+                      >
+                        🚚 Start Delivery
+                      </button>
+                    );
+                  }
+                  if (cur === 'OUT_FOR_DELIVERY') {
+                    return (
+                      <button
+                        onClick={() => handleUpdateStatus(group.ids, 'ARRIVED')}
+                        style={{ width: "100%", padding: "10px", marginBottom: "8px", background: "#ea580c", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 2px 6px rgba(234,88,12,0.3)" }}
+                      >
+                        📍 Arrived at Customer
+                      </button>
+                    );
+                  }
+                  if (cur === 'ARRIVED') {
+                    return (
+                      <button
+                        onClick={() => handleUpdateStatus(group.ids, 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION')}
+                        style={{ width: "100%", padding: "10px", marginBottom: "8px", background: "#0d9488", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 2px 6px rgba(13,148,136,0.3)" }}
+                      >
+                        🤝 Confirm Delivery Handover
+                      </button>
+                    );
+                  }
+                  if (cur === 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION' || cur === 'AWAITING_USER_CONFIRMATION') {
+                    return (
+                      <div style={{ padding: "8px 12px", marginBottom: "8px", background: "#ecfeff", border: "1px solid #a5f3fc", borderRadius: "8px", color: "#0e7490", fontSize: "13px", fontWeight: "700", textAlign: "center" }}>
+                        ⏳ Waiting for Customer Confirmation...
+                      </div>
+                    );
+                  }
+                  if (cur === 'DELIVERED') {
+                    return (
+                      <div style={{ padding: "8px 12px", marginBottom: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", color: "#166534", fontSize: "13px", fontWeight: "700", textAlign: "center" }}>
+                        ✅ Delivered & Confirmed
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <button
                   onClick={() => setViewModal({ isOpen: true, data: group })}
                   style={{
@@ -613,8 +690,8 @@ const MyDeliveries = () => {
         (() => {
           const d = viewModal.data;
           const order = d.order;
-          const isDelivered = d.deliveryStatus === "Delivered";
-          const currentIdx = isDelivered ? STATUS_FLOW.length - 1 : STATUS_FLOW.indexOf(d.deliveryStatus);
+          const isDelivered = ['Delivered', 'DELIVERED'].includes(d.deliveryStatus);
+          const currentIdx = isDelivered ? STATUS_FLOW.length - 1 : STATUS_FLOW.indexOf(d.deliveryStatus?.toUpperCase());
           const canAdvance = !isDelivered && currentIdx >= 0 && currentIdx < STATUS_FLOW.length - 1;
           const nextStatus = canAdvance ? STATUS_FLOW[currentIdx + 1] : null;
 
@@ -752,8 +829,8 @@ const MyDeliveries = () => {
                         {d.orderType === "trial"
                           ? `${fmt(order?.startDate)} → ${fmt(order?.endDate)}`
                           : `${fmt(order?.finalStartDate || order?.requestedStartDate)} → ${fmt(
-                              order?.finalEndDate || order?.requestedEndDate
-                            )}`}
+                            order?.finalEndDate || order?.requestedEndDate
+                          )}`}
                       </div>
                     </div>
                   </div>
@@ -791,8 +868,8 @@ const MyDeliveries = () => {
                                 background: isCurrent
                                   ? "#2e6f40"
                                   : isDone
-                                  ? "#dcfce7"
-                                  : "#f1f5f9",
+                                    ? "#dcfce7"
+                                    : "#f1f5f9",
                                 color: isCurrent ? "white" : isDone ? "#16a34a" : "#94a3b8",
                                 border: isCurrent ? "none" : "1px solid #e2e8f0",
                               }}
@@ -816,43 +893,50 @@ const MyDeliveries = () => {
                   </div>
 
                   {/* Action Buttons for active deliveries */}
-                  {!isDelivered && d.deliveryStatus !== "Rejected" && (
-                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                      {nextStatus && (
-                        <button
-                          onClick={() => {
-                            if (nextStatus === "QR_SCANNED" || nextStatus === "AWAITING_USER_CONFIRMATION") {
-                              setViewModal({ isOpen: false, data: null });
-                              setQrModal({ isOpen: true, token: "", loading: false, error: "" });
-                            } else if (nextStatus === "Delivered") {
-                              showToast("Waiting for customer confirmation.", "error");
-                            } else {
-                              handleUpdateStatus(d.ids, nextStatus);
-                            }
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: "12px",
-                            background: "#2e6f40",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            fontWeight: "700",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {nextStatus === "Out for Delivery"
-                            ? "🚚 Start Delivery"
-                            : nextStatus === "QR_SCANNED"
-                            ? "▣ Scan Door QR"
-                            : nextStatus === "AWAITING_USER_CONFIRMATION"
-                            ? "☑ Select Delivered Items"
-                            : "Awaiting Customer"}
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {!isDelivered && d.deliveryStatus !== "Rejected" && (() => {
+                    const cur = (d.deliveryStatus || '').toUpperCase().replace(/ /g, '_');
+                    return (
+                      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                        {cur === 'ASSIGNED' && (
+                          <button
+                            onClick={() => handleUpdateStatus(d.ids, 'PRODUCT_COLLECTED')}
+                            style={{ flex: 1, padding: "12px", background: "#16a34a", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}
+                          >
+                            📦 Collect Product
+                          </button>
+                        )}
+                        {cur === 'PRODUCT_COLLECTED' && (
+                          <button
+                            onClick={() => handleUpdateStatus(d.ids, 'OUT_FOR_DELIVERY')}
+                            style={{ flex: 1, padding: "12px", background: "#2563eb", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}
+                          >
+                            🚚 Start Delivery
+                          </button>
+                        )}
+                        {cur === 'OUT_FOR_DELIVERY' && (
+                          <button
+                            onClick={() => handleUpdateStatus(d.ids, 'ARRIVED')}
+                            style={{ flex: 1, padding: "12px", background: "#ea580c", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}
+                          >
+                            📍 Arrived at Customer
+                          </button>
+                        )}
+                        {cur === 'ARRIVED' && (
+                          <button
+                            onClick={() => handleUpdateStatus(d.ids, 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION')}
+                            style={{ flex: 1, padding: "12px", background: "#0d9488", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}
+                          >
+                            🤝 Confirm Delivery Handover
+                          </button>
+                        )}
+                        {(cur === 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION' || cur === 'AWAITING_USER_CONFIRMATION') && (
+                          <div style={{ width: "100%", padding: "12px", background: "#ecfeff", border: "1px solid #a5f3fc", borderRadius: "8px", color: "#0e7490", fontWeight: "700", fontSize: "13px", textAlign: "center" }}>
+                            ⏳ Product handed over. Waiting for customer to confirm receipt...
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {isDelivered && (
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -959,24 +1043,24 @@ const MyDeliveries = () => {
                           ? s === "Available"
                             ? "#16a34a"
                             : s === "On Leave"
-                            ? "#d97706"
-                            : "#dc2626"
+                              ? "#d97706"
+                              : "#dc2626"
                           : "#cbd5e1",
                       background:
                         availForm.status === s
                           ? s === "Available"
                             ? "#dcfce7"
                             : s === "On Leave"
-                            ? "#fef3c7"
-                            : "#fee2e2"
+                              ? "#fef3c7"
+                              : "#fee2e2"
                           : "white",
                       color:
                         availForm.status === s
                           ? s === "Available"
                             ? "#16a34a"
                             : s === "On Leave"
-                            ? "#d97706"
-                            : "#dc2626"
+                              ? "#d97706"
+                              : "#dc2626"
                           : "#64748b",
                     }}
                   >

@@ -45,7 +45,7 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
 
       // Filter only orders whose pincode matches the delivery boy's assigned pincodes
       const boyPincodes = (boy.profile?.pincodes || []).map(p => String(p).trim());
-      const filterByPincode = (orders, type) => {
+      const getActiveOrders = (orders, type) => {
         let filtered = orders || [];
         // Never include cancelled, rejected, or completed orders
         filtered = filtered.filter(o => {
@@ -63,26 +63,39 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
           });
         }
 
-        // For trials (Single Day): only show ACTIVE / approved orders (exclude PENDING_ADMIN and CANCELLED)
+        // For trials (Single Day): only show ACTIVE / approved orders (exclude CANCELLED)
         if (type === 'trial') {
           filtered = filtered.filter(o => {
             const st = String(o.status || '').toUpperCase();
-            return st === 'ACTIVE';
+            return st === 'ACTIVE' || st === 'PENDING_ADMIN';
           });
         }
 
-        // Pincode filter
-        if (boyPincodes.length > 0) {
-          filtered = filtered.filter(o => boyPincodes.includes(String(o.pincode || '').trim()));
-        }
         return filtered;
       };
+
+      const allSubs = getActiveOrders(subsRes.data, 'sub');
+      const allTrials = getActiveOrders(trialsRes.data, 'trial');
+
+      const matchingSubs = boyPincodes.length > 0
+        ? allSubs.filter(o => boyPincodes.includes(String(o.pincode || '').trim()))
+        : allSubs;
+      const matchingTrials = boyPincodes.length > 0
+        ? allTrials.filter(o => boyPincodes.includes(String(o.pincode || '').trim()))
+        : allTrials;
+
+      const hasMatches = (matchingSubs.length > 0 || matchingTrials.length > 0);
 
       setAssignModal(prev => ({
         ...prev,
         loading: false,
-        subs: filterByPincode(subsRes.data, 'sub'),
-        trials: filterByPincode(trialsRes.data, 'trial')
+        allSubs,
+        allTrials,
+        matchingSubs,
+        matchingTrials,
+        showAllOrders: !hasMatches,
+        subs: hasMatches ? matchingSubs : allSubs,
+        trials: hasMatches ? matchingTrials : allTrials
       }));
     } catch (e) {
       console.error(e);
@@ -466,20 +479,68 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
             </div>
 
             <div style={{ padding: "24px", overflowY: "auto", flex: 1 }}>
-              {/* Filter Info Banner */}
+              {/* Filter Info Banner and Toggles */}
               {!assignModal.loading && (
-                <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {/* Pincode filter */}
-                  <div style={{ padding: "10px 14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", fontSize: "13px", color: "#1d4ed8", display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span>📍</span>
-                    <span>
-                      <strong>Location Filter:</strong> Showing orders from pincodes:{" "}
-                      <strong>
-                        {(assignModal.boy?.profile?.pincodes || []).length > 0
-                          ? (assignModal.boy.profile.pincodes).join(", ")
-                          : "None set (showing all)"}
-                      </strong>
-                    </span>
+                <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ padding: "10px 14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", fontSize: "13px", color: "#1d4ed8", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>📍</span>
+                      <span>
+                        <strong>Assigned Pincodes:</strong>{" "}
+                        <strong>
+                          {(assignModal.boy?.profile?.pincodes || []).length > 0
+                            ? (assignModal.boy.profile.pincodes).join(", ")
+                            : "None set (All areas)"}
+                        </strong>
+                      </span>
+                    </div>
+
+                    {(assignModal.boy?.profile?.pincodes || []).length > 0 && (
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          onClick={() => setAssignModal(prev => ({
+                            ...prev,
+                            showAllOrders: false,
+                            subs: prev.matchingSubs,
+                            trials: prev.matchingTrials
+                          }))}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            border: "1px solid",
+                            cursor: "pointer",
+                            borderColor: !assignModal.showAllOrders ? "#3b82f6" : "#cbd5e1",
+                            background: !assignModal.showAllOrders ? "#3b82f6" : "white",
+                            color: !assignModal.showAllOrders ? "white" : "#475569"
+                          }}
+                        >
+                          📍 Assigned Area Only ({assignModal.activeTab === 'sub' ? assignModal.matchingSubs?.length : assignModal.matchingTrials?.length})
+                        </button>
+                        <button
+                          onClick={() => setAssignModal(prev => ({
+                            ...prev,
+                            showAllOrders: true,
+                            subs: prev.allSubs,
+                            trials: prev.allTrials
+                          }))}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            border: "1px solid",
+                            cursor: "pointer",
+                            borderColor: assignModal.showAllOrders ? "#3b82f6" : "#cbd5e1",
+                            background: assignModal.showAllOrders ? "#3b82f6" : "white",
+                            color: assignModal.showAllOrders ? "white" : "#475569"
+                          }}
+                        >
+                          🌐 Show All Orders ({assignModal.activeTab === 'sub' ? assignModal.allSubs?.length : assignModal.allTrials?.length})
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -502,10 +563,20 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
                         if (o.deliveryBoyId && o.deliveryBoyId !== assignModal.boy.id) acc[key].assignedToOther = true;
                         return acc;
                     }, {})).map(group => {
+                    const boyPincodes = (assignModal.boy?.profile?.pincodes || []).map(p => String(p).trim());
+                    const matchesPincode = boyPincodes.length === 0 || boyPincodes.includes(String(group.pincode || '').trim());
                     return (
                       <div key={group.ids.join('_')} style={{ padding: "16px", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", background: group.allAssignedToThis ? "#f0fdf4" : "white" }}>
                         <div>
-                          <div style={{ fontWeight: "700", color: "#1e293b", fontSize: "15px", marginBottom: "8px" }}>{group.customerName} <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 'normal' }}>({group.phone})</span></div>
+                          <div style={{ fontWeight: "700", color: "#1e293b", fontSize: "15px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <span>{group.customerName}</span>
+                            <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 'normal' }}>({group.phone})</span>
+                            {matchesPincode ? (
+                              <span style={{ background: "#dcfce7", color: "#166534", fontSize: "11px", fontWeight: "bold", padding: "2px 8px", borderRadius: "12px" }}>✓ Pincode Match</span>
+                            ) : (
+                              <span style={{ background: "#fef3c7", color: "#b45309", fontSize: "11px", fontWeight: "bold", padding: "2px 8px", borderRadius: "12px" }}>⚠️ Outside Area ({group.pincode})</span>
+                            )}
+                          </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
                             {group.items.map(item => (
                                 <div key={item.id} style={{ color: "#3b82f6", fontWeight: "600", fontSize: "13px" }}>• {item.milkType} ({item.dailyQuantity || item.quantity} {item?.product?.unit || (item.milkType.toLowerCase().includes('milk') ? 'L' : 'Qty')})</div>
@@ -540,13 +611,34 @@ const DeliveryBoyManagement = ({ onNavigateToLeaves, onNavigateToQueue }) => {
                       <div style={{ fontSize: "36px", marginBottom: "8px" }}>📍</div>
                       <div style={{ fontWeight: "600", fontSize: "15px", marginBottom: "4px" }}>No matching orders found</div>
                       <div style={{ fontSize: "13px", color: "#94a3b8" }}>
-                        Only showing orders from this delivery boy's assigned pincodes:
+                        No orders in this delivery boy's assigned pincodes:
                         <strong style={{ color: "#3b82f6", marginLeft: "4px" }}>
                           {(assignModal.boy?.profile?.pincodes || []).length > 0
                             ? (assignModal.boy.profile.pincodes).join(", ")
-                            : "None set — showing all"}
+                            : "None set"}
                         </strong>
                       </div>
+                      <button
+                        onClick={() => setAssignModal(prev => ({
+                          ...prev,
+                          showAllOrders: true,
+                          subs: prev.allSubs,
+                          trials: prev.allTrials
+                        }))}
+                        style={{
+                          marginTop: "12px",
+                          padding: "8px 16px",
+                          background: "#3b82f6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          fontWeight: "600",
+                          fontSize: "13px"
+                        }}
+                      >
+                        🌐 View All Active Orders
+                      </button>
                     </div>
                   )}
                 </div>

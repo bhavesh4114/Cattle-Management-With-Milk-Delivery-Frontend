@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import api from "../../../../services/api";
 
-const MilkDeliveryRequestsCustomer = ({ onBack }) => {
+const MilkDeliveryRequestsCustomer = ({ onBack, initialSubscriptionId = null }) => {
   const [context, setContext] = useState(null);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -9,10 +9,10 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
   const [toast, setToast] = useState({ text: "", type: "" });
   const [editingId, setEditingId] = useState(null);
 
-  // 2-day advance minimum date string (YYYY-MM-DD)
+  // 1-day advance minimum date string (YYYY-MM-DD)
   const minDateStr = useMemo(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 2);
+    d.setDate(d.getDate() + 1);
     return d.toISOString().split("T")[0];
   }, []);
 
@@ -22,7 +22,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
     regularQuantity: 1,
     extraQuantity: 1,
     note: "",
-    subscriptionId: null,
+    subscriptionId: initialSubscriptionId || null,
   });
 
   const showToast = (text, type = "success") => {
@@ -42,14 +42,21 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
         api.get("/milk-delivery-requests/my").catch(() => ({ data: [] })),
       ]);
 
-      setContext(ctxRes.data || {});
+      const ctxData = ctxRes.data || {};
+      setContext(ctxData);
       setRequests(reqsRes.data || []);
 
-      const regQty = ctxRes.data?.regularQuantity || 1;
+      const chosenSubId = initialSubscriptionId || ctxData.defaultSubscriptionId || null;
+      let regQty = ctxData.regularQuantity || 1;
+      if (chosenSubId && ctxData.subscriptions) {
+        const found = ctxData.subscriptions.find((s) => s.id === chosenSubId);
+        if (found) regQty = found.dailyQuantity;
+      }
+
       setForm((prev) => ({
         ...prev,
         regularQuantity: regQty,
-        subscriptionId: ctxRes.data?.defaultSubscriptionId || null,
+        subscriptionId: chosenSubId,
         deliveryDate: prev.deliveryDate || minDateStr,
       }));
     } catch (err) {
@@ -68,7 +75,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
     return parseFloat((reg + ext).toFixed(2));
   }, [form.requestType, form.regularQuantity, form.extraQuantity]);
 
-  // Check 2-day advance validity client-side
+  // Check 1-day advance validity client-side
   const advanceCheck = useMemo(() => {
     if (!form.deliveryDate) return { valid: false, message: "Please select a delivery date." };
     const parts = form.deliveryDate.split("-").map(Number);
@@ -80,14 +87,19 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
     if (diffDays < 0) {
       return { valid: false, message: "Delivery date cannot be in the past." };
     }
-    if (diffDays < 2) {
+    if (diffDays < 1) {
       return {
         valid: false,
-        message: `Must be submitted at least 2 days in advance (Selected date is in ${diffDays} day${diffDays === 1 ? "" : "s"}).`,
+        message: `Must be submitted at least 1 day in advance (Same-day request is not allowed).`,
       };
     }
-    return { valid: true, message: `Eligible: ${diffDays} days in advance.` };
+    return { valid: true, message: `Eligible: ${diffDays} day${diffDays === 1 ? "" : "s"} in advance.` };
   }, [form.deliveryDate]);
+
+  const currentSub = useMemo(() => {
+    return (context.subscriptions || []).find((s) => s.id === form.subscriptionId) || context.subscriptions?.[0] || null;
+  }, [context.subscriptions, form.subscriptionId]);
+  const currentUnit = currentSub?.unit || "L";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -172,6 +184,19 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
     }
   };
 
+  const handleCustomerRespond = async (requestId, decision) => {
+    try {
+      setSubmitting(true);
+      await api.patch(`/milk-delivery-requests/${requestId}/customer-respond`, { decision });
+      showToast(decision === "ACCEPT" ? "Offer accepted successfully!" : "Offer rejected.");
+      await fetchInitialData();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to respond to offer", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const fmtDate = (d) => {
     if (!d) return "N/A";
     return new Date(d).toLocaleDateString("en-GB", {
@@ -183,6 +208,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
 
   const getStatusBadge = (status) => {
     switch (status) {
+      case "EXTRA_REQUESTED":
       case "PENDING":
         return {
           bg: "#fef3c7",
@@ -190,12 +216,69 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
           border: "#fde68a",
           label: "⏳ Pending Approval",
         };
+      case "ADMIN_OFFERED":
+        return {
+          bg: "#e0f2fe",
+          color: "#0369a1",
+          border: "#bae6fd",
+          label: "💬 Offer Received – Please Accept/Reject",
+        };
+      case "CUSTOMER_ACCEPTED":
+        return {
+          bg: "#e0e7ff",
+          color: "#3730a3",
+          border: "#c7d2fe",
+          label: "✅ Accepted – Awaiting Delivery Boy",
+        };
+      case "EXTRA_REQUEST_REJECTED":
+        return {
+          bg: "#fee2e2",
+          color: "#991b1b",
+          border: "#fecaca",
+          label: "❌ Offer Rejected",
+        };
+      case "EXTRA_ASSIGNED":
+        return {
+          bg: "#f0fdf4",
+          color: "#166534",
+          border: "#bbf7d0",
+          label: "🚴 Delivery Boy Assigned",
+        };
+      case "PRODUCT_COLLECTED":
+        return {
+          bg: "#fef9c3",
+          color: "#854d0e",
+          border: "#fde047",
+          label: "📦 Product Collected",
+        };
+      case "OUT_FOR_DELIVERY":
+        return {
+          bg: "#ffedd5",
+          color: "#9a3412",
+          border: "#fed7aa",
+          label: "🚚 Out for Delivery",
+        };
+      case "ARRIVED":
+        return {
+          bg: "#ede9fe",
+          color: "#5b21b6",
+          border: "#ddd6fe",
+          label: "📍 Delivery Boy Arrived",
+        };
+      case "DELIVERY_PENDING_CUSTOMER_CONFIRMATION":
+        return {
+          bg: "#ecfeff",
+          color: "#155e75",
+          border: "#a5f3fc",
+          label: "🥛 Handover Pending Confirmation",
+        };
       case "APPROVED":
+      case "DELIVERED":
         return {
           bg: "#dcfce7",
           color: "#166534",
           border: "#bbf7d0",
-          label: "✅ Approved",
+          label: "✅ Delivered / Approved",
         };
       case "REJECTED":
         return {
@@ -269,7 +352,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
             </h1>
             <p style={{ margin: 0, color: "#e0f2fe", fontSize: "0.95rem", maxWidth: "650px", lineHeight: "1.4" }}>
               Need extra milk for a special day, or not at home and want to skip delivery? Submit your request here{" "}
-              <strong>at least 2 days in advance</strong>.
+              <strong>at least 1 day in advance</strong>.
             </p>
           </div>
           {onBack && (
@@ -290,7 +373,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
           )}
         </div>
 
-        {/* 2-Day Advance Rule Notice */}
+        {/* 1-Day Advance Rule Notice */}
         <div
           style={{
             marginTop: "16px",
@@ -306,62 +389,138 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
         >
           <span>ℹ️</span>
           <span>
-            <strong>2-Day Advance Policy:</strong> Requests must be submitted at least 2 full days before the selected delivery date (Earliest date selectable: <strong>{fmtDate(minDateStr)}</strong>).
+            <strong>1-Day Advance Policy:</strong> Requests must be submitted at least 1 full day before the selected delivery date (Earliest date selectable: <strong>{fmtDate(minDateStr)}</strong>).
           </span>
         </div>
       </div>
 
-      {/* Main Request Form */}
-      <div
-        style={{
-          background: "white",
-          borderRadius: "16px",
-          border: "1px solid #e2e8f0",
-          padding: "24px",
-          marginBottom: "32px",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a", fontWeight: "700" }}>
-            {editingId ? "✏️ Edit Milk Delivery Request" : "➕ Create New Milk Delivery Request"}
+      {/* Main Request Form or Inactive Subscription Alert */}
+      {context && context.hasActiveSubscription === false ? (
+        <div
+          style={{
+            background: "#fffbeb",
+            border: "1px solid #fde68a",
+            borderRadius: "16px",
+            padding: "36px 24px",
+            textAlign: "center",
+            marginBottom: "32px",
+            boxShadow: "0 4px 16px rgba(245, 158, 11, 0.08)",
+          }}
+        >
+          <div style={{ fontSize: "52px", marginBottom: "16px" }}>🔒</div>
+          <h2 style={{ fontSize: "1.4rem", color: "#92400e", margin: "0 0 10px 0", fontWeight: "800" }}>
+            Extra Delivery Unavailable
           </h2>
-          {editingId && (
+          <p style={{ color: "#b45309", maxWidth: "560px", margin: "0 auto 20px auto", fontSize: "0.95rem", lineHeight: "1.5" }}>
+            Extra delivery is available only for customers with an active monthly subscription.
+          </p>
+          {onBack && (
             <button
-              type="button"
-              onClick={() => {
-                setEditingId(null);
-                setForm({
-                  deliveryDate: minDateStr,
-                  requestType: "EXTRA_MILK",
-                  regularQuantity: context?.regularQuantity || 1,
-                  extraQuantity: 1,
-                  note: "",
-                  subscriptionId: context?.defaultSubscriptionId || null,
-                });
-              }}
+              onClick={onBack}
               style={{
-                background: "#f1f5f9",
-                border: "1px solid #cbd5e1",
-                padding: "6px 12px",
-                borderRadius: "6px",
-                fontSize: "12px",
+                padding: "10px 22px",
+                background: "#0284c7",
+                color: "white",
+                border: "none",
+                borderRadius: "10px",
+                fontWeight: "700",
                 cursor: "pointer",
-                fontWeight: "600",
+                boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
               }}
             >
-              Cancel Edit
+              ← Back to Products
             </button>
           )}
         </div>
+      ) : (
+        <div
+          style={{
+            background: "white",
+            borderRadius: "16px",
+            border: "1px solid #e2e8f0",
+            padding: "24px",
+            marginBottom: "32px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a", fontWeight: "700" }}>
+              {editingId ? "✏️ Edit Milk Delivery Request" : "➕ Create New Milk Delivery Request"}
+            </h2>
+            {editingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm({
+                    deliveryDate: minDateStr,
+                    requestType: "EXTRA_MILK",
+                    regularQuantity: context?.regularQuantity || 1,
+                    extraQuantity: 1,
+                    note: "",
+                    subscriptionId: context?.defaultSubscriptionId || null,
+                  });
+                }}
+                style={{
+                  background: "#f1f5f9",
+                  border: "1px solid #cbd5e1",
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                Cancel Edit
+              </button>
+            )}
+          </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Request Type Selector */}
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", fontSize: "13.5px", fontWeight: "700", color: "#334155", marginBottom: "8px" }}>
-              Request Type <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <form onSubmit={handleSubmit}>
+            {/* Subscribed Product Selector (Requirement 3: Customer can select product) */}
+            {context?.subscriptions && context.subscriptions.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "13.5px", fontWeight: "700", color: "#334155", marginBottom: "8px" }}>
+                  Select Subscribed Product <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <select
+                  value={form.subscriptionId || ""}
+                  onChange={(e) => {
+                    const sId = parseInt(e.target.value, 10);
+                    const sel = context.subscriptions.find((s) => s.id === sId);
+                    setForm((prev) => ({
+                      ...prev,
+                      subscriptionId: sId,
+                      regularQuantity: sel ? sel.dailyQuantity : prev.regularQuantity,
+                    }));
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "14px",
+                    background: "white",
+                    outline: "none",
+                    fontWeight: "600",
+                    color: "#0f172a",
+                  }}
+                >
+                  {context.subscriptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.productName || s.milkType} — {s.dailyQuantity} {s.unit || "L"}/day (Active till {new Date(s.endDate).toLocaleDateString("en-GB")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Request Type Selector */}
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", fontSize: "13.5px", fontWeight: "700", color: "#334155", marginBottom: "8px" }}>
+                Request Type <span style={{ color: "#ef4444" }}>*</span>
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               <div
                 onClick={() => setForm((prev) => ({ ...prev, requestType: "EXTRA_MILK" }))}
                 style={{
@@ -490,7 +649,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
                       outline: "none",
                     }}
                   />
-                  <span style={{ fontWeight: "700", color: "#475569" }}>Liter(s)</span>
+                  <span style={{ fontWeight: "700", color: "#475569" }}>{currentUnit}</span>
                 </div>
                 {/* Presets */}
                 <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
@@ -510,7 +669,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
                         fontWeight: "600",
                       }}
                     >
-                      +{preset}L
+                      +{preset} {currentUnit}
                     </button>
                   ))}
                 </div>
@@ -540,14 +699,14 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
               <div style={{ fontSize: "14.5px", fontWeight: "700", color: "#0f172a", marginTop: "2px" }}>
                 {form.requestType === "EXTRA_MILK" ? (
                   <>
-                    Regular Quantity ({form.regularQuantity}L) + Extra Quantity ({form.extraQuantity}L) ={" "}
-                    <span style={{ color: "#166534", fontSize: "16px" }}>{totalQuantity} Liters Total</span>
+                    Regular Quantity ({form.regularQuantity} {currentUnit}) + Extra Quantity ({form.extraQuantity} {currentUnit}) ={" "}
+                    <span style={{ color: "#166534", fontSize: "16px" }}>{totalQuantity} {currentUnit} Total</span>
                   </>
                 ) : (
                   <>
                     <span style={{ color: "#c2410c" }}>🚫 SKIPPED – Customer Not At Home</span>
                     <span style={{ fontSize: "13px", color: "#64748b", marginLeft: "6px" }}>
-                      (No milk delivered on this date, Quantity: 0L)
+                      (No milk delivered on this date, Quantity: 0 {currentUnit})
                     </span>
                   </>
                 )}
@@ -564,7 +723,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
                 border: "1px solid rgba(0,0,0,0.06)",
               }}
             >
-              {form.requestType === "EXTRA_MILK" ? `${totalQuantity} L` : "0 L (Skipped)"}
+              {form.requestType === "EXTRA_MILK" ? `${totalQuantity} ${currentUnit}` : `0 ${currentUnit} (Skipped)`}
             </div>
           </div>
 
@@ -615,6 +774,102 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
           </div>
         </form>
       </div>
+      )}
+
+      {/* Pending Offers Banner / Cards for Customer Action */}
+      {requests.filter((r) => r.status === "ADMIN_OFFERED").map((offerReq) => (
+        <div
+          key={`offer-card-${offerReq.id}`}
+          style={{
+            background: "#eff6ff",
+            border: "2px solid #0284c7",
+            borderRadius: "16px",
+            padding: "20px 24px",
+            marginBottom: "24px",
+            boxShadow: "0 6px 20px rgba(2, 132, 199, 0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+            <span style={{ fontSize: "28px" }}>🔔</span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "1.2rem", color: "#0369a1", fontWeight: "800" }}>
+                Extra Delivery Quantity Offer Received
+              </h3>
+              <p style={{ margin: "2px 0 0 0", fontSize: "0.85rem", color: "#0284c7" }}>
+                Delivery Date: <strong>{fmtDate(offerReq.deliveryDate)}</strong> | Product:{" "}
+                <strong>{offerReq.subscription?.productName || "Milk"}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #bae6fd",
+              borderRadius: "12px",
+              padding: "16px 20px",
+              marginBottom: "16px",
+            }}
+          >
+            <div style={{ fontSize: "15px", color: "#0f172a", fontWeight: "600", marginBottom: "14px", lineHeight: "1.6" }}>
+              &ldquo;તમારી requested quantity <strong>{offerReq.extraQuantity} L</strong> છે, પરંતુ હાલમાં માત્ર <strong>{offerReq.offeredQuantity} L</strong> available છે. શું તમે <strong>{offerReq.offeredQuantity} L</strong> Extra Delivery લેવા માંગો છો?&rdquo;
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", fontSize: "13px" }}>
+              <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <div style={{ color: "#64748b", fontSize: "12px", fontWeight: "600" }}>Requested Quantity</div>
+                <div style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a", marginTop: "2px" }}>{offerReq.extraQuantity} L</div>
+              </div>
+              <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <div style={{ color: "#64748b", fontSize: "12px", fontWeight: "600" }}>Available Stock</div>
+                <div style={{ fontSize: "18px", fontWeight: "800", color: "#0369a1", marginTop: "2px" }}>{offerReq.availableQuantity ?? offerReq.offeredQuantity} L</div>
+              </div>
+              <div style={{ background: "#ecfdf5", padding: "12px", borderRadius: "8px", border: "1px solid #a7f3d0" }}>
+                <div style={{ color: "#047857", fontSize: "12px", fontWeight: "700" }}>Offered Quantity</div>
+                <div style={{ fontSize: "18px", fontWeight: "800", color: "#065f46", marginTop: "2px" }}>{offerReq.offeredQuantity} L</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleCustomerRespond(offerReq.id, "ACCEPT")}
+              style={{
+                background: "#16a34a",
+                color: "white",
+                border: "none",
+                padding: "10px 24px",
+                borderRadius: "8px",
+                fontWeight: "700",
+                fontSize: "14px",
+                cursor: submitting ? "not-allowed" : "pointer",
+                boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
+              }}
+            >
+              ✅ Accept {offerReq.offeredQuantity} L
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleCustomerRespond(offerReq.id, "REJECT")}
+              style={{
+                background: "#fee2e2",
+                color: "#991b1b",
+                border: "1px solid #fecaca",
+                padding: "10px 24px",
+                borderRadius: "8px",
+                fontWeight: "700",
+                fontSize: "14px",
+                cursor: submitting ? "not-allowed" : "pointer",
+              }}
+            >
+              ❌ Reject
+            </button>
+          </div>
+        </div>
+      ))}
 
       {/* Requests History */}
       <div
@@ -635,7 +890,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
             <div style={{ fontSize: "36px", marginBottom: "8px" }}>🥛</div>
             <div style={{ fontWeight: "700", color: "#334155" }}>No requests submitted yet.</div>
             <div style={{ fontSize: "13px", marginTop: "4px" }}>
-              Use the form above to request extra milk or pause delivery at least 2 days ahead.
+              Use the form above to request extra milk or pause delivery at least 1 day ahead.
             </div>
           </div>
         ) : (
@@ -682,10 +937,30 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
                       </td>
                       <td style={{ padding: "12px 14px", color: "#334155" }}>{r.regularQuantity} L</td>
                       <td style={{ padding: "12px 14px", color: isSkip ? "#94a3b8" : "#0284c7", fontWeight: isSkip ? "normal" : "700" }}>
-                        {isSkip ? "—" : `+${r.extraQuantity} L`}
+                        {isSkip ? (
+                          "—"
+                        ) : (
+                          <div>
+                            <div>+{r.extraQuantity} L</div>
+                            {r.acceptedQuantity != null && (
+                              <div style={{ fontSize: "11px", color: "#166534", fontWeight: "600" }}>
+                                (Accepted: {r.acceptedQuantity} L)
+                              </div>
+                            )}
+                            {r.status === "ADMIN_OFFERED" && r.offeredQuantity != null && (
+                              <div style={{ fontSize: "11px", color: "#0284c7", fontWeight: "600" }}>
+                                (Offered: {r.offeredQuantity} L)
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "12px 14px", fontWeight: "800", color: isSkip ? "#c2410c" : "#166534" }}>
-                        {isSkip ? "0 L" : `${r.totalQuantity} L`}
+                        {isSkip
+                          ? "0 L"
+                          : r.acceptedQuantity != null
+                          ? `${r.regularQuantity + r.acceptedQuantity} L`
+                          : `${r.totalQuantity} L`}
                       </td>
                       <td style={{ padding: "12px 14px", color: "#64748b", maxWidth: "200px" }}>
                         {r.note || "—"}
@@ -712,6 +987,42 @@ const MilkDeliveryRequestsCustomer = ({ onBack }) => {
                         </span>
                       </td>
                       <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                        {r.status === "ADMIN_OFFERED" && (
+                          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                            <button
+                              onClick={() => handleCustomerRespond(r.id, "ACCEPT")}
+                              disabled={submitting}
+                              style={{
+                                background: "#16a34a",
+                                color: "white",
+                                border: "none",
+                                padding: "5px 12px",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                                fontWeight: "700",
+                              }}
+                            >
+                              Accept {r.offeredQuantity}L
+                            </button>
+                            <button
+                              onClick={() => handleCustomerRespond(r.id, "REJECT")}
+                              disabled={submitting}
+                              style={{
+                                background: "#fee2e2",
+                                color: "#991b1b",
+                                border: "1px solid #fecaca",
+                                padding: "5px 10px",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                                fontWeight: "700",
+                              }}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
                         {r.status === "PENDING" && (
                           <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
                             <button

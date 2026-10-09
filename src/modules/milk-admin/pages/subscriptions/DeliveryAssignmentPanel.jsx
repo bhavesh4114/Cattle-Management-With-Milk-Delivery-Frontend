@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../../../../services/api";
 
 const statusDot = (s) => ({
@@ -44,14 +44,14 @@ const DeliveryAssignmentPanel = ({ orderType, orderId, currentDeliveryBoyId, onA
     try {
       const res = await api.get(`/delivery/history/${orderType}/${orderId}`);
       setHistory(res.data);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchAllBoys = async () => {
     try {
       const res = await api.get("/delivery/boys");
       setAllBoys(res.data);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const doAssign = async (boyId, force = false) => {
@@ -145,7 +145,9 @@ const DeliveryAssignmentPanel = ({ orderType, orderId, currentDeliveryBoyId, onA
                   {label} {boy.name} {isCurrentlyAssigned && <span style={{ fontSize: "11px", color: "#16a34a", fontWeight: "600" }}>(current)</span>}
                 </div>
                 <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                  {boy.pincodes?.length > 0 ? boy.pincodes.join(", ") : "No area set"}
+                  📱 {boy.mobile || "No mobile"}
+                  &nbsp;·&nbsp;
+                  📍 {boy.pincodes?.length > 0 ? boy.pincodes.join(", ") : "No area set"}
                   &nbsp;·&nbsp;
                   <span style={{ color: canAssign ? "#16a34a" : "#dc2626", fontWeight: "600" }}>{boy.todayAvailability}</span>
                   {boy.pincodeMatch && <span style={{ color: "#2563eb", fontWeight: "600" }}>&nbsp;·&nbsp;✓ Pincode Match</span>}

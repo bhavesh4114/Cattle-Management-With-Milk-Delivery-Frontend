@@ -68,8 +68,18 @@ const NotificationCenter = ({ onNavigateTab }) => {
   useEffect(() => {
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 15000);
-    return () => clearInterval(interval);
-  }, []);
+    const handleUpdate = () => {
+      fetchUnreadCount();
+      if (isOpen) fetchNotifications();
+    };
+    window.addEventListener("refresh-notifications", handleUpdate);
+    window.addEventListener("delivery-status-updated", handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("refresh-notifications", handleUpdate);
+      window.removeEventListener("delivery-status-updated", handleUpdate);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -112,16 +122,41 @@ const NotificationCenter = ({ onNavigateTab }) => {
   };
 
   const handleActionClick = async (notif, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (!notif.isRead) {
       handleMarkAsRead(notif.id);
     }
     setIsOpen(false);
 
-    // If an actionUrl or actionType is set, route appropriately
+    const isCustomerView = !window.location.pathname.includes('milk-admin') && notif.role !== 'DELIVERY_BOY';
+
+    // 1. If customer delivery / order notification, dispatch event and navigate to track tab with orderId
+    const isDeliveryNotif =
+      notif.actionType === 'TRACK_DELIVERY' ||
+      notif.actionType === 'VIEW_DELIVERY' ||
+      notif.actionType === 'VIEW_BOOKING' ||
+      notif.type?.includes('DELIVERY') ||
+      notif.type?.includes('BOOKING');
+
+    if (isCustomerView && isDeliveryNotif) {
+      const orderId = notif.orderId || notif.entityId;
+      const orderType = notif.orderType || 'trial';
+
+      window.dispatchEvent(
+        new CustomEvent('open-delivery-tracking', {
+          detail: { orderId, orderType }
+        })
+      );
+
+      const targetUrl = `/admin/products?tab=track${orderId ? `&orderId=${orderId}&orderType=${orderType}` : ''}`;
+      navigate(targetUrl);
+      return;
+    }
+
+    // 2. If an actionUrl or actionType is set, route appropriately
     if (notif.actionUrl) {
       if (notif.actionUrl.includes('?tab=')) {
-        const tab = notif.actionUrl.split('?tab=')[1];
+        const tab = notif.actionUrl.split('?tab=')[1].split('&')[0];
         if (onNavigateTab) {
           onNavigateTab(tab);
           return;
@@ -139,7 +174,14 @@ const NotificationCenter = ({ onNavigateTab }) => {
         if (onNavigateTab) onNavigateTab('my-deliveries');
         else navigate('/milk-admin/dashboard?tab=my-deliveries');
       } else {
-        navigate('/admin/products');
+        const orderId = notif.orderId || notif.entityId;
+        const orderType = notif.orderType || 'trial';
+        window.dispatchEvent(
+          new CustomEvent('open-delivery-tracking', {
+            detail: { orderId, orderType }
+          })
+        );
+        navigate(`/admin/products?tab=track${orderId ? `&orderId=${orderId}&orderType=${orderType}` : ''}`);
       }
     } else if (notif.actionType === 'VIEW_REQUEST') {
       if (onNavigateTab) onNavigateTab('delivery-leaves');
@@ -346,7 +388,13 @@ const NotificationCenter = ({ onNavigateTab }) => {
                 return (
                   <div
                     key={notif.id}
-                    onClick={() => !notif.isRead && handleMarkAsRead(notif.id)}
+                    onClick={(e) => {
+                      if (hasAction) {
+                        handleActionClick(notif, e);
+                      } else if (!notif.isRead) {
+                        handleMarkAsRead(notif.id);
+                      }
+                    }}
                     style={{
                       padding: '14px 18px',
                       borderBottom: '1px solid #f8fafc',

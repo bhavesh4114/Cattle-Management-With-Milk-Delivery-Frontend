@@ -19,7 +19,14 @@ const SpecialAlertsBanner = ({ onNavigateTab, userRole = null }) => {
   useEffect(() => {
     fetchSpecialAlerts();
     const interval = setInterval(fetchSpecialAlerts, 15000);
-    return () => clearInterval(interval);
+    const handleUpdate = () => fetchSpecialAlerts();
+    window.addEventListener("refresh-notifications", handleUpdate);
+    window.addEventListener("delivery-status-updated", handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("refresh-notifications", handleUpdate);
+      window.removeEventListener("delivery-status-updated", handleUpdate);
+    };
   }, []);
 
   const handleDismiss = async (alertId) => {
@@ -59,7 +66,30 @@ const SpecialAlertsBanner = ({ onNavigateTab, userRole = null }) => {
       return;
     }
 
+    const isCustomer = userRole === 'USER' || (!window.location.pathname.includes('milk-admin') && userRole !== 'DELIVERY_BOY');
+
+    if (isCustomer && (alert.actionType === 'TRACK_DELIVERY' || alert.actionType === 'VIEW_DELIVERY' || alert.type?.includes('DELIVERY'))) {
+      const orderId = alert.orderId || alert.entityId;
+      const orderType = alert.orderType || 'trial';
+      window.dispatchEvent(
+        new CustomEvent('open-delivery-tracking', {
+          detail: { orderId, orderType }
+        })
+      );
+      navigate(`/admin/products?tab=track${orderId ? `&orderId=${orderId}&orderType=${orderType}` : ''}`);
+      return;
+    }
+
     if (alert.actionUrl) {
+      if (isCustomer && alert.actionUrl.includes('/admin/products')) {
+        const orderId = alert.orderId || alert.entityId;
+        const orderType = alert.orderType || 'trial';
+        window.dispatchEvent(
+          new CustomEvent('open-delivery-tracking', {
+            detail: { orderId, orderType }
+          })
+        );
+      }
       navigate(alert.actionUrl);
       return;
     }
@@ -72,7 +102,14 @@ const SpecialAlertsBanner = ({ onNavigateTab, userRole = null }) => {
       if (userRole === 'DELIVERY_BOY' || window.location.pathname.includes('milk-admin')) {
         navigate('/milk-admin/dashboard?tab=my-deliveries');
       } else {
-        navigate('/admin/products');
+        const orderId = alert.orderId || alert.entityId;
+        const orderType = alert.orderType || 'trial';
+        window.dispatchEvent(
+          new CustomEvent('open-delivery-tracking', {
+            detail: { orderId, orderType }
+          })
+        );
+        navigate(`/admin/products?tab=track${orderId ? `&orderId=${orderId}&orderType=${orderType}` : ''}`);
       }
     }
   };

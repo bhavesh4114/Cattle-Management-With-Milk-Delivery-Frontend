@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import AlertPopup from '../components/AlertPopup';
 import NotificationCenter from '../../../components/notifications/NotificationCenter';
 import SpecialAlertsBanner from '../../../components/notifications/SpecialAlertsBanner';
+import MilkDeliveryRequestsCustomer from '../../milk-admin/pages/requests/MilkDeliveryRequestsCustomer';
 
 
 const STATUS_COLORS = {
@@ -18,17 +19,33 @@ const STATUS_COLORS = {
   REJECTED: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' },
 };
 
-const UserOrderTracking = ({ onBack }) => {
+const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
   const [subscriptions, setSubscriptions] = useState([]);
   const [trials, setTrials] = useState([]);
   const [pricing, setPricing] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showRequests, setShowRequests] = useState(false);
+  const [selectedSubForExtra, setSelectedSubForExtra] = useState(null);
   const [toast, setToast] = useState({ text: '', type: '' });
   const [payModal, setPayModal] = useState({ open: false, id: null, amount: 0 });
   const [payMethod, setPayMethod] = useState('ONLINE');
   const [paying, setPaying] = useState(false);
   const [trackModal, setTrackModal] = useState({ open: false, data: null, loading: false });
   const [doorQr, setDoorQr] = useState({ loading: true, token: "", user: null });
+  const [trackTab, setTrackTab] = useState('timeline');
+  const [scheduleFilter, setScheduleFilter] = useState('ALL');
+  const [deliveryPayModal, setDeliveryPayModal] = useState({
+    open: false,
+    group: null,
+    selectedOption: 'DELIVERED',
+    customDays: 1,
+    amount: 0,
+    dailyCost: 0,
+    deliveredCount: 0,
+    totalDays: 1,
+    method: 'ONLINE'
+  });
+  const [deliveryPaying, setDeliveryPaying] = useState(false);
 
   const showToast = (text, type = 'success') => {
     setToast({ text, type });
@@ -187,6 +204,112 @@ const UserOrderTracking = ({ onBack }) => {
     }
   };
 
+  const openDeliveryPaymentModal = (group, overrideDeliveredCount = null) => {
+    const item = group.items?.[0] || group;
+    const priceEntry = pricing.find(p => (p.milkType === item.milkType) || (p.name === item.milkType));
+    const unitPrice = parseFloat(item.pricePerLitre || (priceEntry ? (priceEntry.pricePerLitre || priceEntry.price) : 0) || 0);
+    const qty = parseFloat(item.dailyQuantity) || 1;
+    const dailyCost = Math.round(unitPrice * qty);
+    
+    const s = new Date(group.finalStartDate || group.requestedStartDate || group.startDate);
+    const e = new Date(group.finalEndDate || group.requestedEndDate || group.endDate);
+    const totalDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
+    
+    let deliveredCount = overrideDeliveredCount !== null ? overrideDeliveredCount : (group.deliveredCount || 2);
+    if (trackModal.data && String(trackModal.data.orderId) === String(group.id) && trackModal.data.dailySchedule) {
+      deliveredCount = trackModal.data.dailySchedule.deliveredCount || 1;
+    }
+
+    const defaultOption = deliveredCount > 0 ? 'DELIVERED' : 'DAILY';
+    const initAmount = defaultOption === 'DELIVERED' ? (dailyCost * deliveredCount) : dailyCost;
+
+    setDeliveryPayModal({
+      open: true,
+      group,
+      dailyCost,
+      totalDays,
+      deliveredCount,
+      unitPrice,
+      qty,
+      unit: getUnit(item),
+      selectedOption: defaultOption,
+      customDays: deliveredCount || 1,
+      amount: initAmount,
+      method: 'ONLINE'
+    });
+  };
+
+  const handleDeliveryOptionChange = (option) => {
+    const { dailyCost, deliveredCount, totalDays, customDays } = deliveryPayModal;
+    let newAmount = dailyCost;
+    if (option === 'DELIVERED') {
+      newAmount = dailyCost * (deliveredCount || 1);
+    } else if (option === 'DAILY') {
+      newAmount = dailyCost * 1;
+    } else if (option === 'WEEKLY') {
+      newAmount = dailyCost * 7;
+    } else if (option === 'MONTHLY') {
+      newAmount = dailyCost * 30;
+    } else if (option === 'CUSTOM') {
+      newAmount = dailyCost * (customDays || 1);
+    } else if (option === 'FULL') {
+      newAmount = dailyCost * (totalDays || 1);
+    }
+    setDeliveryPayModal(prev => ({
+      ...prev,
+      selectedOption: option,
+      amount: newAmount
+    }));
+  };
+
+  const handleCustomDaysChange = (days) => {
+    const validDays = Math.max(1, parseInt(days) || 1);
+    const newAmount = deliveryPayModal.dailyCost * validDays;
+    setDeliveryPayModal(prev => ({
+      ...prev,
+      customDays: validDays,
+      amount: newAmount
+    }));
+  };
+
+  const submitDeliveryPayment = async () => {
+    if (!deliveryPayModal.group) return;
+    setDeliveryPaying(true);
+    try {
+      const subId = deliveryPayModal.group.id;
+      const { method, amount, selectedOption, customDays } = deliveryPayModal;
+
+      await api.post(`/milk-module/subscription/${subId}/pay`, {
+        method,
+        amount,
+        paymentType: selectedOption,
+        daysCount: selectedOption === 'CUSTOM' ? customDays : undefined
+      });
+
+      if (method === 'ONLINE') {
+        await api.post('/milk-module/subscription/verify-payment', {
+          subscriptionId: subId,
+          amount,
+          paymentType: selectedOption,
+          transactionId: 'TXN' + Date.now(),
+          status: 'SUCCESS'
+        });
+      }
+
+      showToast(method === 'ONLINE' ? `Online payment of Rs. ${amount} successful! ✓` : `Cash payment request of Rs. ${amount} recorded! ✓`);
+      setDeliveryPayModal(prev => ({ ...prev, open: false, group: null }));
+      fetchOrders();
+      if (trackModal.open) {
+        openTrackOrder(subId, 'subscription', trackTab);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast(e.response?.data?.message || 'Payment failed', 'error');
+    } finally {
+      setDeliveryPaying(false);
+    }
+  };
+
   const calcEstimatedTotal = (order) => {
     if (order.totalAmount) return order.totalAmount;
     const priceEntry = pricing.find(p => (p.milkType === order.milkType) || (p.name === order.milkType));
@@ -209,15 +332,110 @@ const UserOrderTracking = ({ onBack }) => {
 
 
 
-  const openTrackOrder = async (id, orderCategory) => {
+  const [closedManually, setClosedManually] = useState(false);
+
+  const closeTrackModal = () => {
+    setClosedManually(true);
+    setTrackModal({ open: false, data: null, loading: false });
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('tab');
+      url.searchParams.delete('orderId');
+      url.searchParams.delete('orderType');
+      const newQuery = url.searchParams.toString();
+      const newUrl = url.pathname + (newQuery ? '?' + newQuery : '');
+      window.history.replaceState({}, '', newUrl);
+    } catch (e) {}
+  };
+
+  const openTrackOrder = async (id, orderCategory, defaultTab = 'timeline') => {
+    if (!id) return;
+    setClosedManually(false);
+    setTrackTab(defaultTab);
+    setScheduleFilter('ALL');
     setTrackModal({ open: true, data: null, loading: true });
     try {
-      const res = await api.get(`/delivery/track?orderType=${orderCategory}&orderId=${id}`);
+      let cat = orderCategory;
+      if (!cat) {
+        const inTrial = trials.find(t => String(t.id) === String(id));
+        if (inTrial) cat = 'trial';
+        else {
+          const inSub = subscriptions.find(s => String(s.id) === String(id));
+          if (inSub) cat = 'subscription';
+          else cat = 'trial';
+        }
+      }
+      if (cat === 'sub') cat = 'subscription';
+
+      const res = await api.get(`/delivery/track?orderType=${cat}&orderId=${id}`);
       setTrackModal({ open: true, data: res.data, loading: false });
     } catch (e) {
       console.error(e);
+      // Fallback: try alternate category
+      try {
+        const altCat = orderCategory === 'trial' ? 'subscription' : 'trial';
+        const res = await api.get(`/delivery/track?orderType=${altCat}&orderId=${id}`);
+        setTrackModal({ open: true, data: res.data, loading: false });
+        return;
+      } catch (err2) {}
       setTrackModal({ open: false, data: null, loading: false });
       showToast('Failed to load tracking info', 'error');
+    }
+  };
+
+  // Auto-open tracking when initialTrackOrder prop is provided
+  useEffect(() => {
+    if (initialTrackOrder?.orderId && !closedManually) {
+      openTrackOrder(initialTrackOrder.orderId, initialTrackOrder.orderType || 'trial');
+    }
+  }, [initialTrackOrder]);
+
+  // Listen to window event 'open-delivery-tracking'
+  useEffect(() => {
+    const handleOpenTracking = (e) => {
+      const { orderId, orderType } = e.detail || {};
+      if (orderId) {
+        openTrackOrder(orderId, orderType || 'trial');
+      }
+    };
+    window.addEventListener('open-delivery-tracking', handleOpenTracking);
+    return () => window.removeEventListener('open-delivery-tracking', handleOpenTracking);
+  }, [trials, subscriptions]);
+
+  // Read URL search params directly on load
+  useEffect(() => {
+    if (loading || closedManually) return;
+    const params = new URLSearchParams(window.location.search);
+    const qOrderId = params.get('orderId');
+    const qOrderType = params.get('orderType') || 'trial';
+    if (qOrderId) {
+      openTrackOrder(qOrderId, qOrderType);
+    } else if (params.get('tab') === 'track' && !trackModal.open && !trackModal.data && !initialTrackOrder?.orderId) {
+      const activeTrial = trials.find(t => ['ACTIVE', 'APPROVED'].includes(t.status));
+      const activeSub = subscriptions.find(s => ['ACTIVE', 'APPROVED'].includes(s.status));
+      const target = activeTrial ? { id: activeTrial.id, type: 'trial' } : (activeSub ? { id: activeSub.id, type: 'subscription' } : null);
+      if (target) {
+        openTrackOrder(target.id, target.type);
+      }
+    }
+  }, [loading, trials, subscriptions, closedManually]);
+
+  const handleCustomerConfirmReceipt = async (orderId, orderCategory) => {
+    try {
+      await api.post(`/delivery/${orderId}/confirm`, { orderType: orderCategory });
+      showToast('Delivery confirmed & saved successfully! ✓');
+      window.dispatchEvent(new CustomEvent('delivery-status-updated', { detail: { orderId, orderType: orderCategory } }));
+      window.dispatchEvent(new CustomEvent('refresh-notifications'));
+      closeTrackModal();
+      fetchOrders();
+    } catch (e) {
+      if (e.response?.data?.message?.includes('No delivery is currently awaiting customer confirmation')) {
+        showToast('Delivery already confirmed & saved! ✓');
+        closeTrackModal();
+        fetchOrders();
+      } else {
+        showToast(e.response?.data?.message || 'Failed to confirm delivery', 'error');
+      }
     }
   };
 
@@ -312,6 +530,18 @@ const UserOrderTracking = ({ onBack }) => {
 
   const pendingAction = groupedOrders.filter(o => o.status === 'AWAITING_CUSTOMER' || o.status === 'AWAITING_PAYMENT');
 
+  if (showRequests) {
+    return (
+      <MilkDeliveryRequestsCustomer
+        onBack={() => {
+          setShowRequests(false);
+          setSelectedSubForExtra(null);
+        }}
+        initialSubscriptionId={selectedSubForExtra}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%)', fontFamily: '"Inter", sans-serif' }}>
       <AlertPopup />
@@ -386,11 +616,16 @@ const UserOrderTracking = ({ onBack }) => {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {groupedOrders.map(group => {
-              const statusInfo = STATUS_COLORS[group.status] || { bg: '#f1f5f9', color: '#475569', label: group.status };
-              const isAwaitingCustomer = group.status === 'AWAITING_CUSTOMER';
-              const isAwaitingPayment = group.status === 'AWAITING_PAYMENT';
-              const isPendingAdmin = group.status === 'PENDING_ADMIN';
-              const isRejected = group.status === 'REJECTED' || group.status === 'CANCELLED';
+              const isTrial = group.orderCategory === 'trial';
+              const isDeliveredOrCompleted = isTrial
+                ? (group.status === 'COMPLETED' || ['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus))
+                : (group.status === 'COMPLETED');
+              const statusInfo = isDeliveredOrCompleted ? STATUS_COLORS.COMPLETED : (STATUS_COLORS[group.status] || { bg: '#f1f5f9', color: '#475569', label: group.status });
+              const isAwaitingCustomer = !isDeliveredOrCompleted && group.status === 'AWAITING_CUSTOMER';
+              const isAwaitingPayment = !isDeliveredOrCompleted && group.status === 'AWAITING_PAYMENT';
+              const isPendingAdmin = !isDeliveredOrCompleted && group.status === 'PENDING_ADMIN';
+              const isRejected = !isDeliveredOrCompleted && (group.status === 'REJECTED' || group.status === 'CANCELLED');
+              const isActive = !isDeliveredOrCompleted && group.status === 'ACTIVE';
               const startDate = group.requestedStartDate || group.startDate;
               const endDate = group.requestedEndDate || group.endDate;
 
@@ -412,7 +647,7 @@ const UserOrderTracking = ({ onBack }) => {
                           {statusInfo.label}
                         </span>
                         <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', background: group.orderCategory === 'trial' ? '#fef9c3' : '#dcfce7', color: group.orderCategory === 'trial' ? '#854d0e' : '#166534' }}>
-                          {group.orderCategory === 'trial' ? 'Single Day' : 'Subscription'}
+                          {group.orderCategory === 'trial' ? 'Single Day' : `${Math.max(1, Math.round(((new Date(endDate || group.endDate)) - (new Date(startDate || group.startDate))) / (1000 * 60 * 60 * 24)) + 1)} Days Subscription`}
                         </span>
                       </div>
                       <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
@@ -431,6 +666,11 @@ const UserOrderTracking = ({ onBack }) => {
                         <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#94a3b8', marginBottom: '4px', textTransform: 'uppercase' }}>Requested Dates</div>
                         <div style={{ fontWeight: '700', color: isAwaitingCustomer ? '#94a3b8' : '#0f172a', textDecoration: isAwaitingCustomer ? 'line-through' : 'none' }}>
                           {startDate ? new Date(startDate).toLocaleDateString('en-GB') : '—'} to {endDate ? new Date(endDate).toLocaleDateString('en-GB') : '—'}
+                          {group.orderCategory !== 'trial' && (
+                            <span style={{ marginLeft: '8px', fontSize: '0.8rem', color: '#4f46e5', fontWeight: '800' }}>
+                              ({Math.max(1, Math.round(((new Date(endDate || group.endDate)) - (new Date(startDate || group.startDate))) / (1000 * 60 * 60 * 24)) + 1)} Days)
+                            </span>
+                          )}
                         </div>
                       </div>
                       {isAwaitingCustomer && group.offeredStartDate && (
@@ -503,12 +743,18 @@ const UserOrderTracking = ({ onBack }) => {
                       </div>
                     )}
 
-                    {group.status === 'ACTIVE' && group.paymentStatus === 'PAID' && (
+                    {isActive && (
                       <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {group.deliveryStatus === 'AWAITING_USER_CONFIRMATION' && (
-                          <div style={{ padding: '14px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '14px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
-                            <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Delivery Confirmation Pending</div>
-                            <div style={{ fontSize: '12px', color: '#115e59', marginTop: '3px' }}>Your door QR was scanned. Confirm from the popup after checking delivered items.</div>
+                        {!['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION', 'ARRIVED', 'OUT_FOR_DELIVERY'].includes((group.deliveryStatus || '').toUpperCase().replace(/ /g, '_')) && (
+                          <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '14px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
+                            <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>🥛 Delivery Confirmation</div>
+                            <div style={{ fontSize: '13px', color: '#115e59', marginTop: '4px', fontWeight: '600' }}>Your delivery has arrived/handed over. Please confirm that you received your delivery.</div>
+                            <button
+                              onClick={() => handleCustomerConfirmReceipt(group.id, group.orderCategory)}
+                              style={{ marginTop: '12px', padding: '12px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
+                            >
+                              ✅ Confirm Delivery Received
+                            </button>
                           </div>
                         )}
                         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -528,9 +774,78 @@ const UserOrderTracking = ({ onBack }) => {
                             )}
                           </div>
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <button onClick={() => openTrackOrder(group.id, group.orderCategory)} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
+                            <button onClick={() => openTrackOrder(group.id, group.orderCategory, 'timeline')} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
                               🚴 Track Order Live
                             </button>
+                            {group.orderCategory !== 'trial' && (
+                              <button
+                                onClick={() => openTrackOrder(group.id, group.orderCategory, 'schedule')}
+                                style={{
+                                  padding: '12px 16px',
+                                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '10px',
+                                  fontWeight: '700',
+                                  fontSize: '0.9rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 4px 10px rgba(99,102,241,0.25)',
+                                }}
+                              >
+                                📅 View Daily Schedule & History
+                              </button>
+                            )}
+                            {group.orderCategory !== 'trial' && (
+                              <button
+                                onClick={() => openDeliveryPaymentModal(group)}
+                                style={{
+                                  padding: '12px 16px',
+                                  background: 'linear-gradient(135deg, #059669, #047857)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '10px',
+                                  fontWeight: '700',
+                                  fontSize: '0.9rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 4px 10px rgba(5,150,105,0.3)',
+                                }}
+                              >
+                                💳 Pay for Deliveries (Daily / Weekly / Monthly)
+                              </button>
+                            )}
+                            {group.orderCategory !== 'trial' && (
+                              <button
+                                onClick={() => {
+                                  setSelectedSubForExtra(group.id);
+                                  setShowRequests(true);
+                                }}
+                                style={{
+                                  padding: '12px 16px',
+                                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '10px',
+                                  fontWeight: '700',
+                                  fontSize: '0.9rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 4px 10px rgba(2,132,199,0.3)',
+                                }}
+                              >
+                                🥛 Request Extra Delivery
+                              </button>
+                            )}
                             <button onClick={() => downloadBill(group)} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}>
                               📄 Download Invoice
                             </button>
@@ -544,6 +859,80 @@ const UserOrderTracking = ({ onBack }) => {
                             )}
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {isDeliveredOrCompleted && (
+                      <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+                        {group.orderCategory !== 'trial' && (
+                          <button
+                            onClick={() => openTrackOrder(group.id, group.orderCategory, 'schedule')}
+                            style={{
+                              padding: '12px 20px',
+                              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '10px',
+                              fontWeight: '700',
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 4px 10px rgba(99,102,241,0.25)',
+                            }}
+                          >
+                            📅 View Daily Schedule & History
+                          </button>
+                        )}
+                        {group.orderCategory !== 'trial' && (
+                          <button
+                            onClick={() => openDeliveryPaymentModal(group)}
+                            style={{
+                              padding: '12px 20px',
+                              background: 'linear-gradient(135deg, #059669, #047857)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '10px',
+                              fontWeight: '700',
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 4px 10px rgba(5,150,105,0.25)',
+                            }}
+                          >
+                            💳 Pay for Deliveries (Daily / Weekly / Monthly)
+                          </button>
+                        )}
+                        {group.orderCategory !== 'trial' && (
+                          <button
+                            onClick={() => {
+                              setSelectedSubForExtra(group.id);
+                              setShowRequests(true);
+                            }}
+                            style={{
+                              padding: '12px 20px',
+                              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '10px',
+                              fontWeight: '700',
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 4px 10px rgba(2,132,199,0.25)',
+                            }}
+                          >
+                            🥛 Request Extra Delivery
+                          </button>
+                        )}
+                        <button onClick={() => downloadBill(group)} style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.2)' }}>
+                          📄 Download Invoice
+                        </button>
                       </div>
                     )}
 
@@ -592,73 +981,784 @@ const UserOrderTracking = ({ onBack }) => {
         </div>
       )}
 
+      {/* Flexible Delivery Payment Modal (Daily / Weekly / Monthly / Delivered) */}
+      {deliveryPayModal.open && deliveryPayModal.group && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, backdropFilter: 'blur(5px)', padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '24px', padding: '32px', maxWidth: '540px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.3)' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ margin: '0 0 6px 0', fontSize: '1.4rem', fontWeight: '800', color: '#0f172a' }}>
+                  💳 Delivery Payment
+                </h2>
+                <div style={{ color: '#64748b', fontSize: '0.9rem' }}>
+                  {deliveryPayModal.group.milkType || deliveryPayModal.group.items?.[0]?.milkType} · {deliveryPayModal.qty} {deliveryPayModal.unit}/day · Rs. {deliveryPayModal.dailyCost}/day
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeliveryPayModal(prev => ({ ...prev, open: false }))}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Delivered Status Banner */}
+            <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#f0fdf4', borderRadius: '16px', border: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>Delivered So Far</div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#15803d', marginTop: '2px' }}>
+                  {deliveryPayModal.deliveredCount} Days Delivered
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '12px', color: '#166534', fontWeight: '600' }}>Delivered Value</div>
+                <div style={{ fontSize: '20px', fontWeight: '800', color: '#15803d' }}>
+                  Rs. {deliveryPayModal.dailyCost * deliveryPayModal.deliveredCount}
+                </div>
+              </div>
+            </div>
+
+            {/* Options Selection Label */}
+            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#475569', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Choose Payment Cycle / Frequency
+            </div>
+
+            {/* Options Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '20px' }}>
+              
+              {/* Option 1: Delivered */}
+              <div
+                onClick={() => handleDeliveryOptionChange('DELIVERED')}
+                style={{
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: deliveryPayModal.selectedOption === 'DELIVERED' ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                  background: deliveryPayModal.selectedOption === 'DELIVERED' ? '#f0fdf4' : '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  transition: 'all 0.2s ease',
+                  position: 'relative'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#15803d' }}>🥛 All Delivered</span>
+                  {deliveryPayModal.selectedOption === 'DELIVERED' && <span style={{ color: '#16a34a', fontWeight: '800' }}>✓</span>}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>{deliveryPayModal.deliveredCount} Days Delivered</div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
+                  Rs. {deliveryPayModal.dailyCost * deliveryPayModal.deliveredCount}
+                </div>
+              </div>
+
+              {/* Option 2: Daily */}
+              <div
+                onClick={() => handleDeliveryOptionChange('DAILY')}
+                style={{
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: deliveryPayModal.selectedOption === 'DAILY' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                  background: deliveryPayModal.selectedOption === 'DAILY' ? '#eff6ff' : '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#1d4ed8' }}>📅 Daily (1 Day)</span>
+                  {deliveryPayModal.selectedOption === 'DAILY' && <span style={{ color: '#2563eb', fontWeight: '800' }}>✓</span>}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Per day delivery</div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
+                  Rs. {deliveryPayModal.dailyCost}
+                </div>
+              </div>
+
+              {/* Option 3: Weekly */}
+              <div
+                onClick={() => handleDeliveryOptionChange('WEEKLY')}
+                style={{
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: deliveryPayModal.selectedOption === 'WEEKLY' ? '2px solid #7c3aed' : '1px solid #e2e8f0',
+                  background: deliveryPayModal.selectedOption === 'WEEKLY' ? '#f5f3ff' : '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#6d28d9' }}>🗓️ Weekly (7 Days)</span>
+                  {deliveryPayModal.selectedOption === 'WEEKLY' && <span style={{ color: '#7c3aed', fontWeight: '800' }}>✓</span>}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>1 week of delivery</div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
+                  Rs. {deliveryPayModal.dailyCost * 7}
+                </div>
+              </div>
+
+              {/* Option 4: Monthly */}
+              <div
+                onClick={() => handleDeliveryOptionChange('MONTHLY')}
+                style={{
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: deliveryPayModal.selectedOption === 'MONTHLY' ? '2px solid #d97706' : '1px solid #e2e8f0',
+                  background: deliveryPayModal.selectedOption === 'MONTHLY' ? '#fffbeb' : '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#b45309' }}>📆 Monthly (30 Days)</span>
+                  {deliveryPayModal.selectedOption === 'MONTHLY' && <span style={{ color: '#d97706', fontWeight: '800' }}>✓</span>}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>1 month of delivery</div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
+                  Rs. {deliveryPayModal.dailyCost * 30}
+                </div>
+              </div>
+
+              {/* Option 5: Custom Days */}
+              <div
+                onClick={() => handleDeliveryOptionChange('CUSTOM')}
+                style={{
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: deliveryPayModal.selectedOption === 'CUSTOM' ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                  background: deliveryPayModal.selectedOption === 'CUSTOM' ? '#f0f9ff' : '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#0369a1' }}>🔢 Custom Days</span>
+                  {deliveryPayModal.selectedOption === 'CUSTOM' && <span style={{ color: '#0284c7', fontWeight: '800' }}>✓</span>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleCustomDaysChange(deliveryPayModal.customDays - 1); }}
+                    style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontWeight: '800' }}
+                  >-</button>
+                  <span style={{ fontWeight: '800', fontSize: '13px', color: '#0f172a' }}>{deliveryPayModal.customDays}d</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleCustomDaysChange(deliveryPayModal.customDays + 1); }}
+                    style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontWeight: '800' }}
+                  >+</button>
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginTop: '2px' }}>
+                  Rs. {deliveryPayModal.dailyCost * deliveryPayModal.customDays}
+                </div>
+              </div>
+
+              {/* Option 6: Full Subscription */}
+              <div
+                onClick={() => handleDeliveryOptionChange('FULL')}
+                style={{
+                  padding: '14px',
+                  borderRadius: '16px',
+                  border: deliveryPayModal.selectedOption === 'FULL' ? '2px solid #475569' : '1px solid #e2e8f0',
+                  background: deliveryPayModal.selectedOption === 'FULL' ? '#f8fafc' : '#ffffff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#334155' }}>📦 Full Balance</span>
+                  {deliveryPayModal.selectedOption === 'FULL' && <span style={{ color: '#475569', fontWeight: '800' }}>✓</span>}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>All {deliveryPayModal.totalDays} days</div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
+                  Rs. {deliveryPayModal.dailyCost * deliveryPayModal.totalDays}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Payment Method Selector */}
+            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#475569', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Choose Payment Method
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
+              <button
+                type="button"
+                onClick={() => setDeliveryPayModal(prev => ({ ...prev, method: 'ONLINE' }))}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  borderRadius: '14px',
+                  border: deliveryPayModal.method === 'ONLINE' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                  background: deliveryPayModal.method === 'ONLINE' ? '#eff6ff' : '#ffffff',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span style={{ fontSize: '1.3rem' }}>💳</span>
+                <span>Online (UPI/Card)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryPayModal(prev => ({ ...prev, method: 'CASH' }))}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  borderRadius: '14px',
+                  border: deliveryPayModal.method === 'CASH' ? '2px solid #f59e0b' : '1px solid #cbd5e1',
+                  background: deliveryPayModal.method === 'CASH' ? '#fffbeb' : '#ffffff',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span style={{ fontSize: '1.3rem' }}>💵</span>
+                <span>Pay Cash to Partner</span>
+              </button>
+            </div>
+
+            {/* Final Amount & Action Buttons */}
+            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Amount to Pay</div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', textTransform: 'capitalize' }}>
+                  {deliveryPayModal.selectedOption.toLowerCase()} payment ({deliveryPayModal.method.toLowerCase()})
+                </div>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>
+                Rs. {deliveryPayModal.amount}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setDeliveryPayModal(prev => ({ ...prev, open: false }))}
+                style={{ flex: 1, padding: '14px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitDeliveryPayment}
+                disabled={deliveryPaying}
+                style={{
+                  flex: 2,
+                  padding: '14px',
+                  background: deliveryPayModal.method === 'ONLINE' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontWeight: '800',
+                  fontSize: '15px',
+                  cursor: deliveryPaying ? 'not-allowed' : 'pointer',
+                  opacity: deliveryPaying ? 0.7 : 1,
+                  boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                {deliveryPaying ? 'Processing...' : `Confirm & Pay Rs. ${deliveryPayModal.amount}`}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Track Order Modal */}
       {trackModal.open && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}>
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) closeTrackModal(); }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}
+        >
+          <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: trackModal.data?.dailySchedule ? '640px' : '480px', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            
+            {/* Modal Header */}
             <div style={{ background: 'linear-gradient(135deg, #1e40af, #3b82f6)', padding: '20px 24px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '18px', fontWeight: '800' }}>🚴 Track Order</div>
+                <div style={{ fontSize: '18px', fontWeight: '800' }}>
+                  {trackModal.data?.dailySchedule ? '📅 Subscription Delivery Details' : '🚴 Track Order'}
+                </div>
                 {trackModal.data && (
-                  <div style={{ fontSize: '13px', opacity: 0.85, marginTop: '4px' }}>{trackModal.data.customerName} · {trackModal.data.milkType} · {trackModal.data.dailyQuantity} {getUnit(trackModal.data)}/day</div>
+                  <div style={{ fontSize: '13px', opacity: 0.9, marginTop: '4px' }}>
+                    {trackModal.data.customerName} · {trackModal.data.productName || trackModal.data.milkType} · {trackModal.data.dailyQuantity} {getUnit(trackModal.data)}/day
+                  </div>
                 )}
               </div>
-              <button onClick={() => setTrackModal({ open: false, data: null, loading: false })} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={closeTrackModal} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
-            <div style={{ padding: '24px', maxHeight: '65vh', overflowY: 'auto' }}>
+
+            {/* Subscription Tab Switcher (if dailySchedule available) */}
+            {trackModal.data?.dailySchedule && (
+              <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                <button
+                  type="button"
+                  onClick={() => setTrackTab('timeline')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    border: 'none',
+                    borderBottom: trackTab === 'timeline' ? '3px solid #2563eb' : '3px solid transparent',
+                    background: trackTab === 'timeline' ? 'white' : 'transparent',
+                    fontWeight: trackTab === 'timeline' ? '800' : '600',
+                    color: trackTab === 'timeline' ? '#1e40af' : '#64748b',
+                    cursor: 'pointer',
+                    fontSize: '13.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  🚴 Today's Live Status
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrackTab('schedule')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    border: 'none',
+                    borderBottom: trackTab === 'schedule' ? '3px solid #6366f1' : '3px solid transparent',
+                    background: trackTab === 'schedule' ? 'white' : 'transparent',
+                    fontWeight: trackTab === 'schedule' ? '800' : '600',
+                    color: trackTab === 'schedule' ? '#4f46e5' : '#64748b',
+                    cursor: 'pointer',
+                    fontSize: '13.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  📅 Daily Schedule ({trackModal.data.dailySchedule.deliveredCount}/{trackModal.data.dailySchedule.totalDays} Days)
+                </button>
+              </div>
+            )}
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
               {trackModal.loading ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
                   <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
-                  <div>Loading tracking info...</div>
+                  <div>Loading delivery details...</div>
                 </div>
               ) : trackModal.data ? (
                 <>
-                  {trackModal.data.deliveryBoyName && (
-                    <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#eff6ff', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>🚴</div>
-                      <div>
-                        <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>Your Delivery Partner</div>
-                        <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '15px' }}>{trackModal.data.deliveryBoyName}</div>
-                      </div>
-                    </div>
-                  )}
-                  {trackModal.data.awaitingUserConfirmation && (
-                    <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '16px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
-                      <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Awaiting Your Confirmation</div>
-                      <div style={{ fontSize: '12px', color: '#115e59', marginTop: '4px' }}>The delivery boy scanned your door QR and selected delivered items. Use the confirmation popup to approve or report an issue.</div>
-                    </div>
-                  )}
-                  <div style={{ position: 'relative' }}>
-                    {trackModal.data.timeline.map((step, idx) => {
-                      const isLast = idx === trackModal.data.timeline.length - 1;
-                      const isCurrent = step.done && (isLast || !trackModal.data.timeline[idx + 1]?.done);
-                      return (
-                        <div key={step.key} style={{ display: 'flex', gap: '16px', paddingBottom: isLast ? 0 : '24px', position: 'relative' }}>
-                          {!isLast && <div style={{ position: 'absolute', left: '19px', top: '40px', bottom: 0, width: '2px', background: step.done ? '#3b82f6' : '#e2e8f0' }} />}
-                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', zIndex: 1, background: step.done ? (isCurrent ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : '#dbeafe') : '#f1f5f9', boxShadow: isCurrent ? '0 4px 12px rgba(59,130,246,0.4)' : 'none', border: step.done ? 'none' : '2px dashed #cbd5e1' }}>
-                            {step.done ? (isCurrent ? step.icon : '✓') : step.icon}
+                  {/* TAB 1: TIMELINE / TODAY'S LIVE TRACKING */}
+                  {(!trackModal.data.dailySchedule || trackTab === 'timeline') && (
+                    <>
+                      {trackModal.data.dailySchedule && (
+                        <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontSize: '13px', color: '#334155' }}>
+                            <strong>Subscription Progress:</strong> {trackModal.data.dailySchedule.deliveredCount} of {trackModal.data.dailySchedule.totalDays} Days Delivered
                           </div>
-                          <div style={{ flex: 1, paddingTop: '8px' }}>
-                            <div style={{ fontWeight: isCurrent ? '800' : step.done ? '600' : '500', color: step.done ? '#0f172a' : '#94a3b8', fontSize: '15px' }}>{step.label}</div>
-                            {isCurrent && <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', marginTop: '2px' }}>● Current Status</div>}
-                            {step.note && <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '2px' }}>⏳ {step.note}</div>}
-                            {step.deliveryBoyName && step.done && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>👤 {step.deliveryBoyName}</div>}
-                            {step.key === 'out_for_delivery' && isCurrent && !trackModal.data.isQrScanned && (
-                              <div style={{ marginTop: '12px', padding: '10px 14px', background: '#ecfeff', borderRadius: '8px', border: '1px dashed #14b8a6' }}>
-                                <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '700', textTransform: 'uppercase' }}>Door QR Required</div>
-                                <div style={{ fontSize: '10px', color: '#115e59' }}>Delivery partner will scan your printed door QR before confirmation.</div>
+                          <button
+                            type="button"
+                            onClick={() => setTrackTab('schedule')}
+                            style={{ border: 'none', background: '#eff6ff', color: '#2563eb', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+                          >
+                            View All {trackModal.data.dailySchedule.totalDays} Days ➔
+                          </button>
+                        </div>
+                      )}
+
+                      {trackModal.data.deliveryBoyName && (
+                        <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#eff6ff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>🚴</div>
+                            <div>
+                              <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '14px' }}>Your Delivery Partner</div>
+                              <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '15px' }}>{trackModal.data.deliveryBoyName}</div>
+                            </div>
+                          </div>
+                          {trackModal.data.deliveryBoy?.mobile && (
+                            <a href={`tel:${trackModal.data.deliveryBoy.mobile}`} style={{ background: '#2563eb', color: 'white', padding: '6px 12px', borderRadius: '8px', textDecoration: 'none', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              📞 {trackModal.data.deliveryBoy.mobile}
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {(trackModal.data.canCustomerConfirm || trackModal.data.awaitingUserConfirmation || (!['Delivered', 'DELIVERED'].includes(trackModal.data.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION', 'ARRIVED', 'OUT_FOR_DELIVERY'].includes((trackModal.data.deliveryStatus || '').toUpperCase().replace(/ /g, '_')))) && (
+                        <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '16px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
+                          <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>🥛 Confirm Delivery Received</div>
+                          <div style={{ fontSize: '12px', color: '#115e59', marginTop: '4px' }}>The delivery partner has reached / handed over your milk product. Please confirm that you received your delivery.</div>
+                          <button
+                            type="button"
+                            onClick={() => handleCustomerConfirmReceipt(trackModal.data.orderId, trackModal.data.orderType)}
+                            style={{ marginTop: '12px', width: '100%', padding: '12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(22,163,74,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                          >
+                            ✅ Confirm Delivery Received
+                          </button>
+                        </div>
+                      )}
+
+                      <div style={{ position: 'relative' }}>
+                        {trackModal.data.timeline.map((step, idx) => {
+                          const isLast = idx === trackModal.data.timeline.length - 1;
+                          const isCurrent = step.done && (isLast || !trackModal.data.timeline[idx + 1]?.done);
+                          return (
+                            <div key={step.key} style={{ display: 'flex', gap: '16px', paddingBottom: isLast ? 0 : '24px', position: 'relative' }}>
+                              {!isLast && <div style={{ position: 'absolute', left: '19px', top: '40px', bottom: 0, width: '2px', background: step.done ? '#3b82f6' : '#e2e8f0' }} />}
+                              <div style={{ width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', zIndex: 1, background: step.done ? (isCurrent ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : '#dbeafe') : '#f1f5f9', boxShadow: isCurrent ? '0 4px 12px rgba(59,130,246,0.4)' : 'none', border: step.done ? 'none' : '2px dashed #cbd5e1' }}>
+                                {step.done ? (isCurrent ? step.icon : '✓') : step.icon}
                               </div>
-                            )}
-                            {step.timestamp && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{new Date(step.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+                              <div style={{ flex: 1, paddingTop: '8px' }}>
+                                <div style={{ fontWeight: isCurrent ? '800' : step.done ? '600' : '500', color: step.done ? '#0f172a' : '#94a3b8', fontSize: '15px' }}>{step.label}</div>
+                                {isCurrent && <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', marginTop: '2px' }}>● Current Status</div>}
+                                {step.note && <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '2px' }}>⏳ {step.note}</div>}
+                                {step.deliveryBoyName && step.done && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>👤 {step.deliveryBoyName}</div>}
+                                {step.key === 'out_for_delivery' && isCurrent && !trackModal.data.isQrScanned && (
+                                  <div style={{ marginTop: '12px', padding: '10px 14px', background: '#ecfeff', borderRadius: '8px', border: '1px dashed #14b8a6' }}>
+                                    <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '700', textTransform: 'uppercase' }}>Door QR Required</div>
+                                    <div style={{ fontSize: '10px', color: '#115e59' }}>Delivery partner will scan your printed door QR before confirmation.</div>
+                                  </div>
+                                )}
+                                {step.timestamp && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{new Date(step.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {['Delivered', 'DELIVERED'].includes(trackModal.data.deliveryStatus) && (
+                        <div style={{ marginTop: '20px', padding: '18px 20px', background: '#f0fdf4', borderRadius: '16px', textAlign: 'center', border: '1px solid #86efac', boxShadow: '0 4px 14px rgba(22,163,74,0.12)' }}>
+                          <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
+                          <div style={{ fontWeight: '800', color: '#15803d', fontSize: '16px' }}>
+                            {trackModal.data.dailySchedule ? "Today's delivery completed successfully!" : "Your milk order has been delivered successfully!"}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#166534', marginTop: '6px', marginBottom: '16px', lineHeight: '1.4' }}>
+                            {trackModal.data.dailySchedule
+                              ? `Delivery has been recorded. You can view all upcoming days in the Daily Schedule tab.`
+                              : `Order delivery confirmed successfully and synced with Admin and Delivery partner.`
+                            }
+                          </div>
+                          {trackModal.data.dailySchedule && (
+                            <button
+                              type="button"
+                              onClick={() => setTrackTab('schedule')}
+                              style={{
+                                width: '100%',
+                                padding: '12px 20px',
+                                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '12px',
+                                fontWeight: '800',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                marginBottom: '10px'
+                              }}
+                            >
+                              📅 View All {trackModal.data.dailySchedule.totalDays} Days Schedule
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => closeTrackModal()}
+                            style={{
+                              width: '100%',
+                              padding: '11px 20px',
+                              background: '#f1f5f9',
+                              color: '#475569',
+                              border: 'none',
+                              borderRadius: '12px',
+                              fontWeight: '700',
+                              fontSize: '14px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* TAB 2: ALL DAYS DAILY SCHEDULE */}
+                  {trackModal.data.dailySchedule && trackTab === 'schedule' && (
+                    <div>
+                      {/* Flexible Delivery Payment Banner */}
+                      <div style={{ marginBottom: '16px', padding: '14px 18px', background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)', borderRadius: '16px', border: '1px solid #a7f3d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#065f46', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            💳 Flexible Delivery Payment (Daily / Weekly / Monthly)
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#047857', marginTop: '3px' }}>
+                            Delivered so far: <strong>{trackModal.data.dailySchedule.deliveredCount} Days</strong> (Rs. {(trackModal.data.billingSummary?.dailyRate || (parseFloat(trackModal.data.dailyQuantity) * 650) || 650) * trackModal.data.dailySchedule.deliveredCount})
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  {trackModal.data.deliveryStatus === 'Delivered' && (
-                    <div style={{ marginTop: '20px', padding: '16px', background: '#f0fdf4', borderRadius: '12px', textAlign: 'center', border: '1px solid #86efac' }}>
-                      <div style={{ fontSize: '24px', marginBottom: '6px' }}>✅</div>
-                      <div style={{ fontWeight: '700', color: '#15803d' }}>Your milk order has been delivered successfully!</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const found = subscriptions.find(s => String(s.id) === String(trackModal.data.orderId));
+                            if (found) {
+                              openDeliveryPaymentModal(found, trackModal.data.dailySchedule.deliveredCount);
+                            } else {
+                              const dummyGroup = {
+                                id: trackModal.data.orderId,
+                                milkType: trackModal.data.milkType,
+                                dailyQuantity: trackModal.data.dailyQuantity,
+                                pricePerLitre: trackModal.data.billingSummary?.dailyRate || 650,
+                                startDate: trackModal.data.dailySchedule.startDate,
+                                endDate: trackModal.data.dailySchedule.endDate,
+                                totalAmount: trackModal.data.billingSummary?.totalAmount || 40300,
+                                deliveredCount: trackModal.data.dailySchedule.deliveredCount
+                              };
+                              openDeliveryPaymentModal(dummyGroup, trackModal.data.dailySchedule.deliveredCount);
+                            }
+                          }}
+                          style={{
+                            padding: '9px 18px',
+                            background: 'linear-gradient(135deg, #059669, #047857)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            fontWeight: '800',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(5,150,105,0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          💳 Pay for Deliveries ➔
+                        </button>
+                      </div>
+
+                      {/* Stats cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                        <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Total Days</div>
+                          <div style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>{trackModal.data.dailySchedule.totalDays}</div>
+                        </div>
+                        <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: '#166534', fontWeight: '700', textTransform: 'uppercase' }}>Delivered</div>
+                          <div style={{ fontSize: '20px', fontWeight: '800', color: '#16a34a', marginTop: '4px' }}>{trackModal.data.dailySchedule.deliveredCount}</div>
+                        </div>
+                        <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '12px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: '700', textTransform: 'uppercase' }}>Remaining</div>
+                          <div style={{ fontSize: '20px', fontWeight: '800', color: '#2563eb', marginTop: '4px' }}>{trackModal.data.dailySchedule.remainingCount}</div>
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div style={{ marginBottom: '16px', background: '#f1f5f9', borderRadius: '8px', overflow: 'hidden', height: '10px' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #10b981, #059669)',
+                            width: `${Math.round((trackModal.data.dailySchedule.deliveredCount / trackModal.data.dailySchedule.totalDays) * 100)}%`,
+                            transition: 'width 0.3s ease'
+                          }}
+                        />
+                      </div>
+
+                      {/* Filter buttons */}
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleFilter('ALL')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '20px',
+                            border: 'none',
+                            background: scheduleFilter === 'ALL' ? '#1e293b' : '#f1f5f9',
+                            color: scheduleFilter === 'ALL' ? 'white' : '#475569',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          All ({trackModal.data.dailySchedule.days.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleFilter('DELIVERED')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '20px',
+                            border: 'none',
+                            background: scheduleFilter === 'DELIVERED' ? '#16a34a' : '#f1f5f9',
+                            color: scheduleFilter === 'DELIVERED' ? 'white' : '#475569',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✅ Delivered ({trackModal.data.dailySchedule.deliveredCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleFilter('UPCOMING')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '20px',
+                            border: 'none',
+                            background: scheduleFilter === 'UPCOMING' ? '#2563eb' : '#f1f5f9',
+                            color: scheduleFilter === 'UPCOMING' ? 'white' : '#475569',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ⏳ Upcoming / Scheduled ({trackModal.data.dailySchedule.remainingCount})
+                        </button>
+                      </div>
+
+                      {/* Day-by-day list */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {trackModal.data.dailySchedule.days
+                          .filter(day => {
+                            if (scheduleFilter === 'DELIVERED') return day.status === 'DELIVERED';
+                            if (scheduleFilter === 'UPCOMING') return day.status !== 'DELIVERED';
+                            return true;
+                          })
+                          .map((day) => {
+                            const isDelivered = day.status === 'DELIVERED';
+                            const isToday = day.isToday;
+                            const hasExtra = day.extraQty > 0;
+
+                            let badgeBg = '#f1f5f9';
+                            let badgeColor = '#64748b';
+                            let badgeText = day.statusLabel || 'Scheduled';
+
+                            if (isDelivered) {
+                              badgeBg = '#dcfce7';
+                              badgeColor = '#15803d';
+                              badgeText = '✅ Delivered';
+                            } else if (day.status === 'ASSIGNED_TODAY') {
+                              badgeBg = '#eff6ff';
+                              badgeColor = '#1d4ed8';
+                              badgeText = '🚴 Assigned for Today';
+                            } else if (day.status === 'IN_PROGRESS') {
+                              badgeBg = '#fef3c7';
+                              badgeColor = '#b45309';
+                              badgeText = `🚚 ${day.statusLabel}`;
+                            } else if (day.status === 'SKIPPED') {
+                              badgeBg = '#fee2e2';
+                              badgeColor = '#b91c1c';
+                              badgeText = '⏭️ Skipped';
+                            }
+
+                            return (
+                              <div
+                                key={day.dayNumber}
+                                style={{
+                                  padding: '12px 16px',
+                                  borderRadius: '14px',
+                                  background: isToday ? '#eff6ff' : isDelivered ? '#f0fdf4' : '#ffffff',
+                                  border: isToday ? '2px solid #3b82f6' : isDelivered ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px',
+                                  boxShadow: isToday ? '0 4px 12px rgba(59,130,246,0.15)' : 'none'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '50%',
+                                      background: isToday ? '#3b82f6' : isDelivered ? '#16a34a' : '#e2e8f0',
+                                      color: isToday || isDelivered ? 'white' : '#475569',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '13px',
+                                      fontWeight: '800'
+                                    }}>
+                                      {day.dayNumber}
+                                    </span>
+                                    <div>
+                                      <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        {day.formattedDate} <span style={{ color: '#64748b', fontWeight: '500', fontSize: '12px' }}>({day.dayName})</span>
+                                        {isToday && (
+                                          <span style={{ background: '#3b82f6', color: 'white', padding: '1px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: '800' }}>
+                                            TODAY
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                                        Quantity: <strong>{day.quantity} {day.unit}</strong>
+                                        {hasExtra && (
+                                          <span style={{ marginLeft: '6px', color: '#0284c7', fontWeight: '700' }}>
+                                            (+{day.extraQty} {day.unit} Extra)
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: badgeBg, color: badgeColor }}>
+                                    {badgeText}
+                                  </span>
+                                </div>
+
+                                {/* Extra info footer (if delivery boy or deliveredAt) */}
+                                {(day.deliveryBoyName || day.deliveredAt || isToday) && (
+                                  <div style={{ marginTop: '4px', paddingTop: '6px', borderTop: '1px dashed #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', fontSize: '11.5px', color: '#64748b' }}>
+                                    <div>
+                                      {day.deliveryBoyName && <span>👤 Partner: <strong style={{ color: '#334155' }}>{day.deliveryBoyName}</strong></span>}
+                                      {day.deliveredAt && <span style={{ marginLeft: day.deliveryBoyName ? '10px' : 0 }}>🕒 {new Date(day.deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+                                    </div>
+                                    {isToday && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setTrackTab('timeline')}
+                                        style={{
+                                          border: 'none',
+                                          background: '#2563eb',
+                                          color: 'white',
+                                          padding: '4px 10px',
+                                          borderRadius: '6px',
+                                          fontSize: '11px',
+                                          fontWeight: '700',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Track Live ➔
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
                     </div>
                   )}
                 </>
