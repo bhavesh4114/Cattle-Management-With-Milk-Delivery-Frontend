@@ -12,34 +12,34 @@ const CowIcon = ({ size = 22, color = "white" }) => (
   </svg>
 );
 const UserIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
   </svg>
 );
 const MailIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="5" width="18" height="14" rx="2" />
     <path d="m3 7 9 6 9-6" />
   </svg>
 );
 const LockIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="5" y="11" width="14" height="10" rx="2" />
     <path d="M8 11V7a4 4 0 0 1 8 0v4" />
   </svg>
 );
 const EyeIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
     <circle cx="12" cy="12" r="3" />
   </svg>
 );
 const EyeOffIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
     <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
@@ -48,14 +48,14 @@ const EyeOffIcon = () => (
   </svg>
 );
 const ArrowRight = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M5 12h14M12 5l7 7-7 7" />
   </svg>
 );
 
 const GiftIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="20 12 20 22 4 22 4 12" />
     <rect x="2" y="7" width="20" height="5" />
@@ -66,23 +66,23 @@ const GiftIcon = () => (
 );
 
 /* ─── Feature icons ─────────────────────────────────────────── */
-const CattleIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-    stroke="#087443" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const CattleIcon = ({ size = 25 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="#087443" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 11.6c0-4.5 3.6-8.1 8-8.1s8 3.6 8 8.1v1.7c0 3.9-2.7 7.3-6.5 8.1l-1.5.3-1.5-.3C6.7 20.6 4 17.2 4 13.3v-1.7Z" />
     <path d="M8.6 11.5h6.8M8.6 14.8h6.8M10.2 8.2h3.6" />
   </svg>
 );
-const OrderIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-    stroke="#087443" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const OrderIcon = ({ size = 25 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="#087443" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" />
     <line x1="6" y1="20" x2="6" y2="14" />
   </svg>
 );
-const ReportIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-    stroke="#087443" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const ReportIcon = ({ size = 25 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="#087443" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <polyline points="14,2 14,8 20,8" />
     <line x1="16" y1="13" x2="8" y2="13" />
@@ -90,9 +90,9 @@ const ReportIcon = () => (
     <line x1="10" y1="9" x2="8" y2="9" />
   </svg>
 );
-const GrowIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-    stroke="#087443" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const GrowIcon = ({ size = 25 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="#087443" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -101,10 +101,10 @@ const GrowIcon = () => (
 );
 
 const FEATURES = [
-  { icon: <CattleIcon />, title: "Cattle Management", desc: "Keep track of your cattle and milk production" },
-  { icon: <OrderIcon />, title: "Order Tracking", desc: "Manage orders and deliveries efficiently" },
-  { icon: <ReportIcon />, title: "Daily Reports", desc: "View production and delivery reports" },
-  { icon: <GrowIcon />, title: "Grow Your Business", desc: "Connect with customers and expand" },
+  { icon: <CattleIcon size={25} />, title: "Cattle Management", desc: "Keep track of your cattle and milk production" },
+  { icon: <OrderIcon size={25} />, title: "Order Tracking", desc: "Manage orders and deliveries efficiently" },
+  { icon: <ReportIcon size={25} />, title: "Daily Reports", desc: "View production and delivery reports" },
+  { icon: <GrowIcon size={25} />, title: "Grow Your Business", desc: "Connect with customers and expand" },
 ];
 
 /* ─── Main Component ────────────────────────────────────────── */
@@ -223,33 +223,28 @@ const Register = () => {
           flex: 1 1 0;
           min-width: 0;
           background: linear-gradient(160deg, #eaf6ff 0%, #f8fffe 40%, #f0faf4 100%);
-          padding: 20px 38px 0 38px;
+          padding: 24px 44px 0 44px;
           display: flex;
           flex-direction: column;
           position: relative;
           overflow: hidden;
+          border-right: 1px solid rgba(8, 116, 67, 0.1);
         }
 
-        /* Curved right edge of left panel */
+        /* Straight clean edge between panels (removed bottom curve) */
         .reg-left::after {
-          content: '';
-          position: absolute;
-          top: 0; right: -40px; bottom: 0;
-          width: 80px;
-          background: #f0faf4;
-          border-radius: 0 0 0 80px / 0 0 0 60px;
-          z-index: 2;
+          display: none;
         }
 
         /* Right panel */
         .reg-right {
-          width: clamp(400px, 45%, 520px);
+          width: clamp(450px, 47%, 580px);
           flex-shrink: 0;
           background: #f0faf4;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 14px 24px;
+          padding: 16px 24px;
           position: relative;
           z-index: 3;
           overflow-y: auto;
@@ -276,10 +271,10 @@ const Register = () => {
         /* Card */
         .reg-card {
           background: white;
-          border-radius: 18px;
-          padding: 18px 28px 16px;
+          border-radius: 20px;
+          padding: 24px 32px 22px;
           width: 100%;
-          max-width: 420px;
+          max-width: 470px;
           box-shadow: 0 4px 28px rgba(8,116,67,0.08), 0 1px 4px rgba(0,0,0,0.04);
           border: 1px solid rgba(8,116,67,0.08);
         }
@@ -287,12 +282,12 @@ const Register = () => {
         /* Register button */
         .reg-btn {
           width: 100%;
-          height: 40px;
-          border-radius: 8px;
+          height: 46px;
+          border-radius: 10px;
           border: none;
           background: #087443;
           color: white;
-          font-size: 14px;
+          font-size: 15.5px;
           font-weight: 700;
           cursor: pointer;
           display: flex;
@@ -301,7 +296,7 @@ const Register = () => {
           gap: 8px;
           transition: background 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
           box-shadow: 0 3px 10px rgba(8,116,67,0.28);
-          margin-top: 2px;
+          margin-top: 4px;
         }
         .reg-btn:hover:not(:disabled) {
           background: #064E36;
@@ -314,8 +309,8 @@ const Register = () => {
         /* Responsive */
         @media (max-width: 900px) {
           .reg-left { padding: 24px 24px 0; }
-          .reg-right { width: clamp(360px, 48%, 460px); padding: 20px 16px; }
-          .reg-card { padding: 20px 20px 18px; }
+          .reg-right { width: clamp(380px, 50%, 480px); padding: 20px 16px; }
+          .reg-card { padding: 22px 22px 18px; }
         }
         @media (max-width: 700px) {
           .reg-root { flex-direction: column; height: auto; overflow: auto; }
@@ -335,53 +330,53 @@ const Register = () => {
         <div className="reg-left">
 
           {/* Branding */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, position: "relative", zIndex: 1 }}>
             <div style={{
-              width: 38, height: 38, borderRadius: 9,
+              width: 48, height: 48, borderRadius: 12,
               background: "#087443",
               display: "grid", placeItems: "center",
-              boxShadow: "0 3px 8px rgba(8,116,67,0.3)",
+              boxShadow: "0 4px 12px rgba(8,116,67,0.32)",
               flexShrink: 0,
             }}>
-              <CowIcon size={20} color="white" />
+              <CowIcon size={26} color="white" />
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 14.5, color: "#111827", lineHeight: 1.2 }}>Cattle Manager</div>
-              <div style={{ fontSize: 11.5, color: "#52627A", marginTop: 1 }}>Livestock Management System</div>
+              <div style={{ fontWeight: 800, fontSize: 18, color: "#111827", lineHeight: 1.2 }}>Cattle Manager</div>
+              <div style={{ fontSize: 13.5, color: "#52627A", marginTop: 2, fontWeight: 500 }}>Livestock Management System</div>
             </div>
           </div>
 
           {/* Hero text */}
-          <div style={{ position: "relative", zIndex: 1, maxWidth: 460 }}>
+          <div style={{ position: "relative", zIndex: 1, maxWidth: 580 }}>
             <h2 style={{
-              margin: "0 0 10px",
-              fontSize: "clamp(26px, 3.4vw, 40px)",
+              margin: "0 0 12px",
+              fontSize: "clamp(32px, 3.8vw, 48px)",
               fontWeight: 900,
               lineHeight: 1.15,
-              letterSpacing: "-0.02em",
+              letterSpacing: "-0.025em",
             }}>
               <span style={{ color: "#111827" }}>Manage Your<br /></span>
               <span style={{ color: "#087443" }}>Cattle Business</span>
             </h2>
-            <p style={{ margin: "0 0 22px", fontSize: 13.5, color: "#52627A", lineHeight: 1.55, maxWidth: 380 }}>
+            <p style={{ margin: "0 0 26px", fontSize: 16, color: "#4B5563", lineHeight: 1.6, maxWidth: 500, fontWeight: 450 }}>
               Join our platform to easily manage your livestock, track orders, deliveries, and grow your dairy business.
             </p>
 
             {/* Features */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               {FEATURES.map((f, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <div style={{
-                    width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                    width: 46, height: 46, borderRadius: 12, flexShrink: 0,
                     background: "#E6F4EE",
                     display: "grid", placeItems: "center",
-                    border: "1px solid rgba(8,116,67,0.12)",
+                    border: "1px solid rgba(8,116,67,0.15)",
                   }}>
                     {f.icon}
                   </div>
-                  <div style={{ paddingTop: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13.5, color: "#111827", marginBottom: 1 }}>{f.title}</div>
-                    <div style={{ fontSize: 12, color: "#52627A" }}>{f.desc}</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 16.5, color: "#111827", marginBottom: 2 }}>{f.title}</div>
+                    <div style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.4 }}>{f.desc}</div>
                   </div>
                 </div>
               ))}
@@ -412,37 +407,37 @@ const Register = () => {
           <div className="reg-card">
 
             {/* Card top branding */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 12 }}>
               <div style={{
-                width: 36, height: 36, borderRadius: 10,
+                width: 44, height: 44, borderRadius: 12,
                 background: "#087443",
                 display: "grid", placeItems: "center",
-                boxShadow: "0 3px 10px rgba(8,116,67,0.25)",
-                marginBottom: 6,
+                boxShadow: "0 4px 12px rgba(8,116,67,0.28)",
+                marginBottom: 8,
               }}>
-                <CowIcon size={19} color="white" />
+                <CowIcon size={24} color="white" />
               </div>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#52627A", textTransform: "uppercase" }}>
+              <p style={{ margin: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.14em", color: "#52627A", textTransform: "uppercase" }}>
                 Cattle Management
               </p>
             </div>
 
             {/* Heading */}
-            <div style={{ textAlign: "center", marginBottom: 10 }}>
-              <h1 style={{ margin: "0 0 2px", fontSize: 21, fontWeight: 800, color: "#111827", letterSpacing: "-0.02em" }}>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <h1 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 800, color: "#111827", letterSpacing: "-0.025em" }}>
                 Create Account
               </h1>
-              <p style={{ margin: 0, fontSize: 12, color: "#52627A", lineHeight: 1.4 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "#52627A", lineHeight: 1.45 }}>
                 Register to access the livestock management portal.
               </p>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleRegister} autoComplete="off" style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <form onSubmit={handleRegister} autoComplete="off" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
               {/* Full Name */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <label htmlFor="reg-name" style={{ fontSize: 12, fontWeight: 600, color: "#1a2e1a" }}>Full Name</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label htmlFor="reg-name" style={{ fontSize: 13.5, fontWeight: 600, color: "#1a2e1a" }}>Full Name</label>
                 <FieldShell>
                   <span style={{ color: "#9CA3AF", display: "flex", flexShrink: 0 }}><UserIcon /></span>
                   <input
@@ -457,8 +452,8 @@ const Register = () => {
               </div>
 
               {/* Email */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <label htmlFor="reg-email" style={{ fontSize: 12, fontWeight: 600, color: "#1a2e1a" }}>Email Address</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label htmlFor="reg-email" style={{ fontSize: 13.5, fontWeight: 600, color: "#1a2e1a" }}>Email Address</label>
                 <FieldShell>
                   <span style={{ color: "#9CA3AF", display: "flex", flexShrink: 0 }}><MailIcon /></span>
                   <input
@@ -473,8 +468,8 @@ const Register = () => {
               </div>
 
               {/* Password */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <label htmlFor="reg-password" style={{ fontSize: 12, fontWeight: 600, color: "#1a2e1a" }}>Password</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label htmlFor="reg-password" style={{ fontSize: 13.5, fontWeight: 600, color: "#1a2e1a" }}>Password</label>
                 <FieldShell>
                   <span style={{ color: "#9CA3AF", display: "flex", flexShrink: 0 }}><LockIcon /></span>
                   <input
@@ -491,12 +486,12 @@ const Register = () => {
                     {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                 </FieldShell>
-                <p style={{ margin: "1px 0 0", fontSize: 11, color: "#9CA3AF" }}>Min 6 characters required</p>
+                <p style={{ margin: "2px 0 0", fontSize: 11.5, color: "#6B7280" }}>Min 6 characters required</p>
               </div>
 
               {/* Confirm Password */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <label htmlFor="reg-confirm" style={{ fontSize: 12, fontWeight: 600, color: "#1a2e1a" }}>Confirm Password</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label htmlFor="reg-confirm" style={{ fontSize: 13.5, fontWeight: 600, color: "#1a2e1a" }}>Confirm Password</label>
                 <FieldShell>
                   <span style={{ color: "#9CA3AF", display: "flex", flexShrink: 0 }}><LockIcon /></span>
                   <input
@@ -516,9 +511,9 @@ const Register = () => {
               </div>
 
               {/* Referral Code (Optional with Real-time Validation) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <label htmlFor="reg-referral" style={{ fontSize: 12, fontWeight: 600, color: "#1a2e1a" }}>
+                  <label htmlFor="reg-referral" style={{ fontSize: 13.5, fontWeight: 600, color: "#1a2e1a" }}>
                     Referral Code
                   </label>
                   {referralValidation.status === "valid" ? (
@@ -669,14 +664,14 @@ const Register = () => {
             )}
 
             {/* OR divider */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 5px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0 10px" }}>
               <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
-              <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>OR</span>
+              <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 600 }}>OR</span>
               <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
             </div>
 
             {/* Sign in link */}
-            <p style={{ margin: 0, textAlign: "center", fontSize: 12.5, color: "#52627A" }}>
+            <p style={{ margin: 0, textAlign: "center", fontSize: 14, color: "#52627A" }}>
               Already have an account?{" "}
               <Link to="/login" style={{ color: "#087443", fontWeight: 700, textDecoration: "none" }}>
                 Sign in
@@ -699,12 +694,12 @@ const FieldShell = ({ children, customBorder, customBg, customShadow }) => {
       style={{
         display: "flex",
         alignItems: "center",
-        height: 38,
-        borderRadius: 8,
+        height: 46,
+        borderRadius: 10,
         border: customBorder || (focused ? "1.5px solid #087443" : "1.5px solid #DCE3EA"),
         background: customBg || "white",
-        padding: "0 12px",
-        gap: 8,
+        padding: "0 14px",
+        gap: 10,
         boxShadow: customShadow || (focused ? "0 0 0 3px rgba(8,116,67,0.08)" : "none"),
         transition: "all 0.18s ease",
       }}
@@ -718,7 +713,7 @@ const inputStyle = {
   flex: 1,
   border: "none",
   outline: "none",
-  fontSize: 13,
+  fontSize: 14.5,
   color: "#111827",
   background: "transparent",
   fontFamily: "inherit",
