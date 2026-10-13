@@ -3,6 +3,7 @@ import api from "../../../services/api";
 import { useConfirm } from "../../../context/ConfirmContext";
 
 const availableFeatures = [
+  { key: "products", label: "Products (Customer Store / Buy Milk)" },
   { key: "cows", label: "Manage Cows" },
   { key: "deaths", label: "Cow Death" },
   { key: "stock", label: "Stock Management" },
@@ -121,15 +122,19 @@ const RoleCreation = () => {
   const handleEditUser = (user) => {
     setFormMode("edit_user");
     setEditingUserId(user.id);
+    const roleId = user.customRoleId || user.customRole?.id || "";
+    const userRole = roles.find(r => String(r.id) === String(roleId)) || user.customRole;
+    const initialPerms = userRole?.permissions || [];
+
     setFormData({
-      customRoleId: user.customRoleId || "",
+      customRoleId: roleId,
       newRoleName: "",
-      name: user.name,
+      name: user.name || "",
       email: user.email || "",
       password: "",
       confirmPassword: "",
-      status: user.status,
-      permissions: []
+      status: user.status || "Active",
+      permissions: initialPerms
     });
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -189,7 +194,7 @@ const RoleCreation = () => {
     try {
       let roleIdToUse = formData.customRoleId;
 
-      // 1. Create role if needed
+      // 1. Create or update role permissions
       if (formMode === "create" && formData.customRoleId === "CREATE_NEW") {
         const roleRes = await api.post("/admin/roles", {
           name: formData.newRoleName,
@@ -198,7 +203,7 @@ const RoleCreation = () => {
         });
         roleIdToUse = roleRes.data.data.id;
       } else if (roleIdToUse && roleIdToUse !== "CREATE_NEW") {
-        // Update the existing role's permissions just in case they modified them while creating/editing user
+        // Update the existing role's permissions
         try {
           await api.put(`/admin/roles/${roleIdToUse}`, {
             permissions: formData.permissions
@@ -213,7 +218,8 @@ const RoleCreation = () => {
         name: formData.name,
         email: formData.email,
         status: formData.status,
-        customRoleId: roleIdToUse
+        customRoleId: roleIdToUse,
+        permissions: formData.permissions
       };
       
       if (formData.password && formData.password !== "••••••••") {
@@ -229,7 +235,7 @@ const RoleCreation = () => {
       }
 
       setShowForm(false);
-      fetchData();
+      await fetchData();
     } catch (error) {
       setFormError(error.response?.data?.message || "An error occurred");
     }

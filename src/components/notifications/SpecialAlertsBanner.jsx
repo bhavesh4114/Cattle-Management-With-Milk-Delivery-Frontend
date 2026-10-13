@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 
-const SpecialAlertsBanner = ({ onNavigateTab, userRole = null }) => {
+const SpecialAlertsBanner = ({ onNavigateTab, userRole = null, panel = null }) => {
   const navigate = useNavigate();
+  const effectivePanel = panel || (window.location.pathname.includes('milk-admin') ? 'milk' : (window.location.pathname.startsWith('/admin') ? 'cattle' : 'milk'));
   const [alerts, setAlerts] = useState([]);
   const [dismissingId, setDismissingId] = useState(null);
 
   const fetchSpecialAlerts = async () => {
     try {
-      const res = await api.get('/alerts/special-alerts');
+      const res = await api.get(`/alerts/special-alerts?panel=${effectivePanel}`);
       setAlerts(res.data || []);
     } catch (err) {
       // Ignore polling errors
@@ -67,6 +68,18 @@ const SpecialAlertsBanner = ({ onNavigateTab, userRole = null }) => {
     }
 
     const isCustomer = userRole === 'USER' || (!window.location.pathname.includes('milk-admin') && userRole !== 'DELIVERY_BOY');
+
+    const isExtraDelivery =
+      alert.type === 'EXTRA_DELIVERY_OFFER' ||
+      alert.type === 'EXTRA_DELIVERY_ACCEPTED' ||
+      alert.actionType === 'VIEW_DELIVERY_REQUESTS' ||
+      alert.entityType === 'MilkDeliveryRequest';
+
+    if (isExtraDelivery) {
+      window.dispatchEvent(new CustomEvent('open-extra-delivery-requests'));
+      navigate('/admin/products?tab=extra-delivery');
+      return;
+    }
 
     if (isCustomer && (alert.actionType === 'TRACK_DELIVERY' || alert.actionType === 'VIEW_DELIVERY' || alert.type?.includes('DELIVERY'))) {
       const orderId = alert.orderId || alert.entityId;
@@ -148,6 +161,8 @@ const SpecialAlertsBanner = ({ onNavigateTab, userRole = null }) => {
             ? 'Assign Now'
             : alert.actionType === 'VIEW_DELIVERIES'
             ? 'View Deliveries'
+            : alert.actionType === 'VIEW_DELIVERY_REQUESTS' || alert.type === 'EXTRA_DELIVERY_OFFER'
+            ? 'View Offer'
             : 'View Delivery';
 
         return (

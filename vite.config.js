@@ -10,6 +10,10 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": "http://127.0.0.1:5100",
+      "/socket.io": {
+        target: "http://127.0.0.1:5100",
+        ws: true,
+      },
     },
   },
 })

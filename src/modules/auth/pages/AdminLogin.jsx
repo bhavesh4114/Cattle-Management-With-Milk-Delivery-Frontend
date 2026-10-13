@@ -1,6 +1,6 @@
 import api from "../../../services/api";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -125,6 +125,27 @@ const AdminLogin = () => {
 
         <p className="login-message" role="alert">
           {message}
+        </p>
+
+        <p
+          style={{
+            marginTop: "0.75rem",
+            textAlign: "center",
+            fontSize: "0.875rem",
+            color: "var(--color-text-secondary, #6b7280)",
+          }}
+        >
+          Don't have an account?{" "}
+          <Link
+            to="/register"
+            style={{
+              color: "var(--color-brand-deep, #4f46e5)",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Register here
+          </Link>
         </p>
       </section>
     </div>

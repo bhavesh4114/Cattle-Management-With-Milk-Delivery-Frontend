@@ -18,11 +18,21 @@ import PaymentReminders from "../../orders/components/PaymentReminders";
 import MilkDeliveryRequestsAdmin from "./requests/MilkDeliveryRequestsAdmin";
 import NotificationCenter from "../../../components/notifications/NotificationCenter";
 import SpecialAlertsBanner from "../../../components/notifications/SpecialAlertsBanner";
+import AdminFeedbackComplaints from "../../feedback/pages/AdminFeedbackComplaints";
+import DiscountAdmin from "./offers/DiscountAdmin";
+import ReferralAdmin from "./offers/ReferralAdmin";
+import MyReferral from "./offers/MyReferral";
+import { MessageCircle } from "lucide-react";
+import AdminChatView from "../../chat/components/AdminChatView";
+import ParticipantChatView from "../../chat/components/ParticipantChatView";
+import chatApi from "../../../services/chatApi";
+import { initChatSocket } from "../../../services/chatSocket";
 
 const MilkAdminDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   // Sync initial tab with URL search parameter if present
   const getInitialTab = () => {
@@ -34,6 +44,16 @@ const MilkAdminDashboard = () => {
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [stats, setStats] = useState({ totalCustomers: 0, todayDelivery: 0, pendingPayments: 0 });
+  const [isOfferExpanded, setIsOfferExpanded] = useState(() => {
+    const initial = getInitialTab();
+    return initial === "discount" || initial === "referral" || initial === "my-referral";
+  });
+
+  useEffect(() => {
+    if (activeTab === "discount" || activeTab === "referral") {
+      setIsOfferExpanded(true);
+    }
+  }, [activeTab]);
 
   const adminData = useMemo(() => {
     try {
@@ -57,10 +77,41 @@ const MilkAdminDashboard = () => {
   }, [location.search]);
 
   useEffect(() => {
-    if (isDeliveryBoy && activeTab !== "my-deliveries" && activeTab !== "my-leaves" && activeTab !== "my-profile") {
+    if (isDeliveryBoy && activeTab !== "my-deliveries" && activeTab !== "my-leaves" && activeTab !== "my-profile" && activeTab !== "chat") {
       setActiveTab("my-deliveries");
     }
   }, [isDeliveryBoy, activeTab]);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const data = await chatApi.getUnreadCount();
+        setUnreadChatCount(data?.total || 0);
+      } catch {
+        // silent
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+
+    const socket = initChatSocket();
+    if (socket) {
+      const handleUpdate = () => fetchUnread();
+      socket.on("conversation_updated", handleUpdate);
+      socket.on("new_message", handleUpdate);
+      socket.on("messages_read", handleUpdate);
+
+      return () => {
+        clearInterval(interval);
+        socket.off("conversation_updated", handleUpdate);
+        socket.off("new_message", handleUpdate);
+        socket.off("messages_read", handleUpdate);
+      };
+    }
+
+    return () => clearInterval(interval);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'dashboard') {
@@ -141,12 +192,14 @@ const MilkAdminDashboard = () => {
             { id: "delivery-leaves", icon: "🏖️", label: "Delivery Leaves" },
             { id: "reassignment-queue", icon: "🔄", label: "Reassignment Queue" },
             { id: "roles", icon: "🛡️", label: "Role Creation" },
+            { id: "feedback-complaints", icon: "💬", label: "Feedback & Complaints" },
+            { id: "chat", icon: <MessageCircle size={18} />, label: isDeliveryBoy ? "Support Chat" : "Chat" },
             { id: "announcements", icon: "📢", label: "Announcements" },
             { id: "my-deliveries", icon: "🛵", label: "My Deliveries" },
             { id: "my-leaves", icon: "📅", label: "My Leaves" },
             { id: "my-profile", icon: "👤", label: "My Profile" }
           ].filter(item => {
-            if (isDeliveryBoy) return item.id === "my-deliveries" || item.id === "my-leaves" || item.id === "my-profile";
+            if (isDeliveryBoy) return item.id === "my-deliveries" || item.id === "my-leaves" || item.id === "my-profile" || item.id === "chat";
             if (item.id === "my-deliveries" || item.id === "my-leaves" || item.id === "my-profile") return false;
             if (item.id === "roles" || item.id === "announcements") return adminData?.role === "ADMIN";
             return true;
@@ -156,13 +209,163 @@ const MilkAdminDashboard = () => {
               onClick={() => handleTabChange(item.id)}
               className={`nav-item ${activeTab === item.id ? "active" : ""}`}
               style={{
-                display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px", borderRadius: "8px", border: "none", textAlign: "left", width: "100%", fontSize: "14px", fontWeight: "500", cursor: "pointer", transition: "all 0.2s",
+                display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: "8px", border: "none", textAlign: "left", width: "100%", fontSize: "14px", fontWeight: "500", cursor: "pointer", transition: "all 0.2s",
                 ...(activeTab === item.id ? { background: "rgba(255,255,255,0.15)", color: "white" } : { background: "transparent", color: "#cbd5e1" })
               }}
             >
-              <span style={{ fontSize: "18px" }}>{item.icon}</span> {item.label}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "18px", display: "inline-flex", alignItems: "center" }}>{item.icon}</span> {item.label}
+              </div>
+              {item.id === "chat" && unreadChatCount > 0 && (
+                <span
+                  style={{
+                    background: "#ef4444",
+                    color: "white",
+                    borderRadius: "999px",
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    padding: "2px 7px",
+                    minWidth: "18px",
+                    textAlign: "center",
+                    lineHeight: "14px",
+                  }}
+                >
+                  {unreadChatCount}
+                </span>
+              )}
             </button>
           ))}
+
+          {!isDeliveryBoy && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <button
+                type="button"
+                onClick={() => setIsOfferExpanded((prev) => !prev)}
+                className={`nav-item ${activeTab === "discount" || activeTab === "referral" || activeTab === "my-referral" ? "active-parent" : ""}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  textAlign: "left",
+                  width: "100%",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  ...(activeTab === "discount" || activeTab === "referral" || activeTab === "my-referral"
+                    ? { background: "rgba(255,255,255,0.12)", color: "white" }
+                    : { background: "transparent", color: "#cbd5e1" })
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "18px" }}>🎁</span>
+                  <span>Offer</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    transition: "transform 0.25s ease",
+                    transform: isOfferExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    display: "inline-block",
+                    opacity: 0.85
+                  }}
+                >
+                  ▼
+                </span>
+              </button>
+
+              {isOfferExpanded && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "3px",
+                    paddingLeft: "16px",
+                    marginTop: "3px",
+                    marginBottom: "3px"
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange("discount")}
+                    className={`nav-item sub-item ${activeTab === "discount" ? "active" : ""}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 14px",
+                      borderRadius: "7px",
+                      border: "none",
+                      textAlign: "left",
+                      width: "100%",
+                      fontSize: "13.5px",
+                      fontWeight: activeTab === "discount" ? "600" : "500",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      ...(activeTab === "discount"
+                        ? { background: "rgba(255,255,255,0.2)", color: "#ffffff", borderLeft: "3px solid #60a5fa" }
+                        : { background: "rgba(255,255,255,0.04)", color: "#cbd5e1", borderLeft: "3px solid transparent" })
+                    }}
+                  >
+                    <span style={{ fontSize: "15px" }}>🏷️</span> Discount
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange("referral")}
+                    className={`nav-item sub-item ${activeTab === "referral" ? "active" : ""}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 14px",
+                      borderRadius: "7px",
+                      border: "none",
+                      textAlign: "left",
+                      width: "100%",
+                      fontSize: "13.5px",
+                      fontWeight: activeTab === "referral" ? "600" : "500",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      ...(activeTab === "referral"
+                        ? { background: "rgba(255,255,255,0.2)", color: "#ffffff", borderLeft: "3px solid #60a5fa" }
+                        : { background: "rgba(255,255,255,0.04)", color: "#cbd5e1", borderLeft: "3px solid transparent" })
+                    }}
+                  >
+                    <span style={{ fontSize: "15px" }}>👥</span> Referral Program
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange("my-referral")}
+                    className={`nav-item sub-item ${activeTab === "my-referral" ? "active" : ""}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 14px",
+                      borderRadius: "7px",
+                      border: "none",
+                      textAlign: "left",
+                      width: "100%",
+                      fontSize: "13.5px",
+                      fontWeight: activeTab === "my-referral" ? "600" : "500",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      ...(activeTab === "my-referral"
+                        ? { background: "rgba(255,255,255,0.2)", color: "#ffffff", borderLeft: "3px solid #60a5fa" }
+                        : { background: "rgba(255,255,255,0.04)", color: "#cbd5e1", borderLeft: "3px solid transparent" })
+                    }}
+                  >
+                    <span style={{ fontSize: "15px" }}>🎁</span> My Referral & Rewards
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", padding: "20px 10px" }}>
@@ -195,7 +398,7 @@ const MilkAdminDashboard = () => {
             </div>
           </div>
           <div className="topbar-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <NotificationCenter onNavigateTab={handleTabChange} />
+            <NotificationCenter panel="milk" onNavigateTab={handleTabChange} />
             {isDeliveryBoy && (
               <button
                 type="button"
@@ -243,7 +446,7 @@ const MilkAdminDashboard = () => {
 
         <section className="admin-content" style={{ padding: "24px" }}>
           {/* Actionable Special Dashboard Alerts */}
-          <SpecialAlertsBanner onNavigateTab={handleTabChange} userRole={isDeliveryBoy ? "DELIVERY_BOY" : "ADMIN"} />
+          <SpecialAlertsBanner panel="milk" onNavigateTab={handleTabChange} userRole={isDeliveryBoy ? "DELIVERY_BOY" : "ADMIN"} />
           {activeTab === "dashboard" && (
             <div>
               <h3 style={{ fontSize: "1.5rem", color: "#1e293b", marginBottom: "20px" }}>Overview</h3>
@@ -270,6 +473,7 @@ const MilkAdminDashboard = () => {
                     { id: "delivery", icon: "👥", label: "Delivery Boy Mgmt" },
                     { id: "delivery-leaves", icon: "🏖️", label: "Delivery Leaves" },
                     { id: "reassignment-queue", icon: "🔄", label: "Reassignment Queue" },
+                    { id: "feedback-complaints", icon: "💬", label: "Feedback & Complaints" },
                     { id: "staff-reports", icon: "📋", label: "Staff Reports" },
                     { id: "announcements", icon: "📢", label: "Send Announcements" }
                   ].map((action) => (
@@ -329,9 +533,20 @@ const MilkAdminDashboard = () => {
             />
           )}
           {activeTab === "roles" && <RoleCreation />}
+          {activeTab === "feedback-complaints" && <AdminFeedbackComplaints />}
+          {activeTab === "chat" && (
+            isDeliveryBoy ? (
+              <ParticipantChatView role="DELIVERY_BOY" title="Support Chat with Admin" />
+            ) : (
+              <AdminChatView />
+            )
+          )}
           {activeTab === "announcements" && <PaymentReminders />}
+          {activeTab === "discount" && <DiscountAdmin />}
+          {activeTab === "referral" && <ReferralAdmin />}
+          {activeTab === "my-referral" && <MyReferral />}
 
-          {activeTab !== "dashboard" && activeTab !== "staff-reports" && activeTab !== "orders" && activeTab !== "products" && activeTab !== "subscriptions" && activeTab !== "trials" && activeTab !== "delivery" && activeTab !== "delivery-leaves" && activeTab !== "reassignment-queue" && activeTab !== "my-deliveries" && activeTab !== "my-leaves" && activeTab !== "my-profile" && activeTab !== "roles" && activeTab !== "announcements" && (
+          {activeTab !== "dashboard" && activeTab !== "staff-reports" && activeTab !== "orders" && activeTab !== "products" && activeTab !== "subscriptions" && activeTab !== "trials" && activeTab !== "delivery" && activeTab !== "delivery-leaves" && activeTab !== "reassignment-queue" && activeTab !== "my-deliveries" && activeTab !== "my-leaves" && activeTab !== "my-profile" && activeTab !== "roles" && activeTab !== "feedback-complaints" && activeTab !== "chat" && activeTab !== "announcements" && activeTab !== "discount" && activeTab !== "referral" && activeTab !== "my-referral" && (
             <div style={{ background: "white", padding: "40px", borderRadius: "16px", textAlign: "center", border: "1px dashed #cbd5e1" }}>
               <h3 style={{ color: "#475569", textTransform: "capitalize" }}>{activeTab} Module Coming Soon</h3>
             </div>

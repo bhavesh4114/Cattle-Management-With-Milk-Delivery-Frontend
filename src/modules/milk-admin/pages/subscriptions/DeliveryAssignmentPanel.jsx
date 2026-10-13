@@ -180,6 +180,13 @@ const DeliveryAssignmentPanel = ({ orderType, orderId, currentDeliveryBoyId, onA
                 <div style={{ fontWeight: "600", color: "#1e293b" }}>{h.isActive ? "✓" : "→"} Assigned to {h.deliveryBoy?.name}</div>
                 {h.notes && <div style={{ color: "#64748b", fontStyle: "italic" }}>Reason: {h.notes}</div>}
                 <div style={{ fontSize: "12px", color: h.isActive ? "#16a34a" : "#94a3b8" }}>Status: {h.deliveryStatus} · {h.isActive ? "Active" : "Replaced"}</div>
+                {h.deliveryProof && (
+                  <div style={{ marginTop: "4px" }}>
+                    <a href={h.deliveryProof} target="_blank" rel="noreferrer" style={{ fontSize: "11.5px", color: "#16a34a", fontWeight: "700", textDecoration: "underline" }}>
+                      📸 View Proof Photo ↗
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           ))}

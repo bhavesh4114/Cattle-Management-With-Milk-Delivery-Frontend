@@ -204,7 +204,7 @@ const DeliveryBoyProfile = ({ onNavigateToDeliveries, onNavigateToLeaves }) => {
             <div style={{ color: "#bfdbfe", fontSize: "14px", marginTop: "4px" }}>
               ✉️ {admin.email} {profile.mobile ? ` | 📱 ${profile.mobile}` : ""}
             </div>
-            <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap", alignItems: "center" }}>
               <span
                 style={{
                   background: accountStatus === "Active" ? "#10b981" : "#ef4444",
@@ -234,6 +234,58 @@ const DeliveryBoyProfile = ({ onNavigateToDeliveries, onNavigateToLeaves }) => {
               >
                 ● Today: {dailyStatus}
               </span>
+
+              {admin.referralCode && (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    background: "rgba(255, 255, 255, 0.18)",
+                    backdropFilter: "blur(6px)",
+                    padding: "3px 10px",
+                    borderRadius: "10px",
+                    border: "1px dashed rgba(255, 255, 255, 0.4)",
+                  }}
+                >
+                  <span style={{ fontSize: "11px", color: "#bfdbfe", fontWeight: "600", textTransform: "uppercase" }}>
+                    🎁 Referral:
+                  </span>
+                  <strong style={{ fontSize: "13px", letterSpacing: "0.5px", fontFamily: "monospace", color: "#fff" }}>
+                    {admin.referralCode}
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(admin.referralCode);
+                        showToast("Referral code copied!", "success");
+                      } catch {
+                        const ta = document.createElement("textarea");
+                        ta.value = admin.referralCode;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(ta);
+                        showToast("Referral code copied!", "success");
+                      }
+                    }}
+                    style={{
+                      background: "white",
+                      color: "#1e40af",
+                      border: "none",
+                      padding: "2px 8px",
+                      borderRadius: "5px",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

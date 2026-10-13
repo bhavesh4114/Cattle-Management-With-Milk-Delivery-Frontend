@@ -7,6 +7,13 @@ import AlertPopup from '../components/AlertPopup';
 import NotificationCenter from '../../../components/notifications/NotificationCenter';
 import SpecialAlertsBanner from '../../../components/notifications/SpecialAlertsBanner';
 import MilkDeliveryRequestsCustomer from '../../milk-admin/pages/requests/MilkDeliveryRequestsCustomer';
+import ErrorBoundary from '../../../components/ErrorBoundary';
+import FeedbackModal from '../../feedback/components/FeedbackModal';
+import RaiseComplaintModal from '../../feedback/components/RaiseComplaintModal';
+import MyComplaintsModal from '../../feedback/components/MyComplaintsModal';
+import { MessageCircle } from 'lucide-react';
+import SupportChatModal from '../../chat/components/SupportChatModal';
+import chatApi from '../../../services/chatApi';
 
 
 const STATUS_COLORS = {
@@ -25,6 +32,9 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
   const [pricing, setPricing] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showRequests, setShowRequests] = useState(false);
+  const [feedbackModal, setFeedbackModal] = useState({ open: false, order: null });
+  const [complaintModal, setComplaintModal] = useState({ open: false, order: null });
+  const [showMyComplaints, setShowMyComplaints] = useState(false);
   const [selectedSubForExtra, setSelectedSubForExtra] = useState(null);
   const [toast, setToast] = useState({ text: '', type: '' });
   const [payModal, setPayModal] = useState({ open: false, id: null, amount: 0 });
@@ -33,6 +43,22 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
   const [trackModal, setTrackModal] = useState({ open: false, data: null, loading: false });
   const [doorQr, setDoorQr] = useState({ loading: true, token: "", user: null });
   const [trackTab, setTrackTab] = useState('timeline');
+  const [showSupportChat, setShowSupportChat] = useState(false);
+  const [userUnreadChatCount, setUserUnreadChatCount] = useState(0);
+
+  useEffect(() => {
+    const fetchChatUnread = async () => {
+      try {
+        const data = await chatApi.getUnreadCount();
+        setUserUnreadChatCount(data?.total || 0);
+      } catch {
+        // silent
+      }
+    };
+    fetchChatUnread();
+    const interval = setInterval(fetchChatUnread, 15000);
+    return () => clearInterval(interval);
+  }, [showSupportChat]);
   const [scheduleFilter, setScheduleFilter] = useState('ALL');
   const [deliveryPayModal, setDeliveryPayModal] = useState({
     open: false,
@@ -46,6 +72,35 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
     method: 'ONLINE'
   });
   const [deliveryPaying, setDeliveryPaying] = useState(false);
+  const [cartCount, setCartCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem('userProductCart');
+      return saved ? JSON.parse(saved).length : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    const handleCartUpdate = (e) => {
+      if (e?.detail?.count !== undefined) {
+        setCartCount(e.detail.count);
+      } else {
+        try {
+          const saved = localStorage.getItem('userProductCart');
+          setCartCount(saved ? JSON.parse(saved).length : 0);
+        } catch {
+          setCartCount(0);
+        }
+      }
+    };
+    window.addEventListener('cart-updated', handleCartUpdate);
+    window.addEventListener('storage', handleCartUpdate);
+    return () => {
+      window.removeEventListener('cart-updated', handleCartUpdate);
+      window.removeEventListener('storage', handleCartUpdate);
+    };
+  }, []);
 
   const showToast = (text, type = 'success') => {
     setToast({ text, type });
@@ -402,6 +457,16 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
     return () => window.removeEventListener('open-delivery-tracking', handleOpenTracking);
   }, [trials, subscriptions]);
 
+  // Listen to window event 'open-extra-delivery-requests'
+  useEffect(() => {
+    const handleOpenRequests = () => {
+      setShowRequests(true);
+      closeTrackModal();
+    };
+    window.addEventListener('open-extra-delivery-requests', handleOpenRequests);
+    return () => window.removeEventListener('open-extra-delivery-requests', handleOpenRequests);
+  }, []);
+
   // Read URL search params directly on load
   useEffect(() => {
     if (loading || closedManually) return;
@@ -532,18 +597,102 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
 
   if (showRequests) {
     return (
-      <MilkDeliveryRequestsCustomer
-        onBack={() => {
+      <ErrorBoundary
+        onReset={() => {
           setShowRequests(false);
           setSelectedSubForExtra(null);
         }}
-        initialSubscriptionId={selectedSubForExtra}
-      />
+      >
+        <MilkDeliveryRequestsCustomer
+          onBack={() => {
+            setShowRequests(false);
+            setSelectedSubForExtra(null);
+          }}
+          initialSubscriptionId={selectedSubForExtra}
+        />
+      </ErrorBoundary>
     );
   }
 
+  const formatDate = (d) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+  };
+
+  const getProductImage = (item) => {
+    if (item?.product?.image) return item.product.image;
+    if (item?.image) return item.image;
+    const priceEntry = pricing.find(p => p.id === item?.productId || p.name === item?.milkType || p.milkType === item?.milkType);
+    if (priceEntry?.image) return priceEntry.image;
+    const nameLower = (item?.milkType || '').toLowerCase();
+    if (nameLower.includes('ghee')) {
+      return 'https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=200&auto=format&fit=crop&q=80';
+    }
+    return 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=200&auto=format&fit=crop&q=80';
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%)', fontFamily: '"Inter", sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#edf7f3', padding: '24px 32px', fontFamily: '"Inter", sans-serif' }}>
+      <style>{`
+        .order-card-action-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          align-content: start;
+        }
+        .order-card-action-btn {
+          position: relative;
+          height: 52px;
+          border-radius: 11px;
+          border: none;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 18px;
+          box-sizing: border-box;
+          width: 100%;
+          text-decoration: none;
+          transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+        }
+        .order-card-action-btn:hover {
+          filter: brightness(1.08);
+          transform: translateY(-1px);
+        }
+        .order-card-action-btn:active {
+          transform: translateY(0);
+        }
+        .order-card-full-span {
+          grid-column: 1 / -1;
+        }
+        @media (max-width: 860px) {
+          .order-card-bottom-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .order-card-qr-box {
+            width: 100% !important;
+          }
+          .order-card-middle-row {
+            gap: 20px !important;
+          }
+          .order-card-middle-divider {
+            display: none !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .my-orders-header-card {
+            padding: 16px !important;
+          }
+          .order-card-action-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .order-card-action-btn {
+            height: 50px;
+          }
+        }
+      `}</style>
       <AlertPopup />
       {toast.text && (
         <div style={{ position: 'fixed', top: '24px', right: '24px', background: toast.type === 'error' ? '#ef4444' : '#10b981', color: 'white', padding: '16px 24px', borderRadius: '12px', zIndex: 9999, fontWeight: 'bold', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
@@ -551,53 +700,165 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
         </div>
       )}
 
-      <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)', padding: '28px 32px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}>
+      {/* 2. My Orders Header Card */}
+      <div
+        className="my-orders-header-card"
+        style={{
+          background: '#0c2340',
+          borderRadius: '16px',
+          padding: '18px 24px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          boxShadow: '0 4px 16px rgba(12, 35, 64, 0.15)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              background: '#153154',
+              border: '1px solid #234673',
+              color: '#ffffff',
+              padding: '9px 18px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '0.88rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
             Back to Products
           </button>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '800' }}>My Orders</h1>
-            <p style={{ margin: '4px 0 0 0', opacity: 0.8, fontSize: '0.9rem' }}>Track your milk orders and deliveries</p>
+            <h1 style={{ margin: 0, fontSize: '1.65rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.02em' }}>
+              My Orders
+            </h1>
+            <p style={{ margin: '3px 0 0 0', color: '#94a3b8', fontSize: '0.88rem' }}>
+              Track your milk orders and deliveries
+            </p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <NotificationCenter />
-          <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px 20px', borderRadius: '12px', textAlign: 'center' }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: '800' }}>{groupedOrders.length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Total Orders</div>
+          <div
+            style={{
+              background: '#142f52',
+              border: '1px solid #224775',
+              borderRadius: '10px',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <NotificationCenter />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (onBack) onBack();
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('open-cart'));
+              }, 50);
+            }}
+            title="Cart"
+            style={{
+              background: '#142f52',
+              border: '1px solid #224775',
+              borderRadius: '10px',
+              padding: '8px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              color: 'white',
+              cursor: 'pointer',
+              fontWeight: '700',
+              fontSize: '0.85rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span style={{ fontSize: '18px', lineHeight: 1 }}>🛒</span>
+            <span>Cart</span>
+            {cartCount > 0 && (
+              <span
+                style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  borderRadius: '999px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  padding: '1px 6px',
+                  lineHeight: '14px'
+                }}
+              >
+                {cartCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowMyComplaints(true)}
+            title="My Complaints & Grievances"
+            style={{
+              background: '#142f52',
+              border: '1px solid #224775',
+              borderRadius: '10px',
+              padding: '8px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              color: 'white',
+              cursor: 'pointer',
+              fontWeight: '700',
+              fontSize: '0.85rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span style={{ fontSize: '18px', lineHeight: 1 }}>🛡️</span>
+            <span>My Complaints</span>
+          </button>
+          <div
+            style={{
+              background: '#142f52',
+              border: '1px solid #224775',
+              padding: '8px 18px',
+              borderRadius: '10px',
+              textAlign: 'center',
+              minWidth: '85px'
+            }}
+          >
+            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#ffffff', lineHeight: '1.1' }}>
+              {groupedOrders.length}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px', fontWeight: '500' }}>
+              Total Orders
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         <SpecialAlertsBanner userRole="USER" />
-        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '20px 24px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '18px', flexWrap: 'wrap', boxShadow: '0 4px 12px rgba(15,23,42,0.06)' }}>
-          <div>
-            <h2 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '1.15rem' }}>Door Delivery QR</h2>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>Print this once and paste it on your door for secure delivery confirmation.</p>
-            {doorQr.token && (
-              <button onClick={copyDoorQrToken} style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', cursor: 'pointer', fontWeight: 800, fontSize: '0.78rem' }}>
-                Token: {doorQr.token.slice(0, 10)}...{doorQr.token.slice(-6)}
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div id="door-qr-print-source" style={{ background: 'white', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-              {doorQr.token ? <QRCodeSVG value={doorQr.token} size={96} level="H" /> : <div style={{ width: 96, height: 96, display: 'grid', placeItems: 'center', color: '#94a3b8', fontSize: '12px' }}>{doorQr.loading ? 'Loading' : 'No QR'}</div>}
-            </div>
-            <button onClick={printDoorQr} disabled={!doorQr.token} style={{ padding: '12px 18px', borderRadius: '10px', border: 'none', background: doorQr.token ? '#0f172a' : '#94a3b8', color: 'white', cursor: doorQr.token ? 'pointer' : 'not-allowed', fontWeight: 800 }}>
-              Print QR
-            </button>
-          </div>
-        </div>
 
         {pendingAction.length > 0 && (
-          <div style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: 'white', borderRadius: '16px', padding: '20px 28px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 10px 30px rgba(124,58,237,0.3)' }}>
-            <span style={{ fontSize: '2rem' }}>🔔</span>
+          <div style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', color: 'white', borderRadius: '16px', padding: '18px 24px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 8px 24px rgba(124,58,237,0.25)' }}>
+            <span style={{ fontSize: '1.8rem' }}>🔔</span>
             <div>
-              <div style={{ fontWeight: '800', fontSize: '1.1rem' }}>Action Required!</div>
-              <div style={{ opacity: 0.9, fontSize: '0.9rem' }}>{pendingAction.length} order(s) need your attention — review below.</div>
+              <div style={{ fontWeight: '800', fontSize: '1.05rem' }}>Action Required!</div>
+              <div style={{ opacity: 0.9, fontSize: '0.88rem' }}>{pendingAction.length} order(s) need your attention — review below.</div>
             </div>
           </div>
         )}
@@ -619,336 +880,519 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
               const isTrial = group.orderCategory === 'trial';
               const isDeliveredOrCompleted = isTrial
                 ? (group.status === 'COMPLETED' || ['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus))
-                : (group.status === 'COMPLETED');
-              const statusInfo = isDeliveredOrCompleted ? STATUS_COLORS.COMPLETED : (STATUS_COLORS[group.status] || { bg: '#f1f5f9', color: '#475569', label: group.status });
+                : (group.status === 'COMPLETED' || ['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus) || (group.deliveredCount > 0));
+              const isOutForDelivery = !isDeliveredOrCompleted && ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(group.deliveryStatus);
+              const statusInfo = isDeliveredOrCompleted 
+                ? STATUS_COLORS.COMPLETED 
+                : (isOutForDelivery 
+                    ? { bg: '#eff6ff', color: '#1d4ed8', label: 'Out for Delivery' }
+                    : (STATUS_COLORS[group.status] || { bg: '#dcfce7', color: '#166534', label: group.status || 'Active' })
+                  );
               const isAwaitingCustomer = !isDeliveredOrCompleted && group.status === 'AWAITING_CUSTOMER';
               const isAwaitingPayment = !isDeliveredOrCompleted && group.status === 'AWAITING_PAYMENT';
               const isPendingAdmin = !isDeliveredOrCompleted && group.status === 'PENDING_ADMIN';
               const isRejected = !isDeliveredOrCompleted && (group.status === 'REJECTED' || group.status === 'CANCELLED');
-              const isActive = !isDeliveredOrCompleted && group.status === 'ACTIVE';
+              const isActive = !isDeliveredOrCompleted && (group.status === 'ACTIVE' || !group.status);
               const startDate = group.requestedStartDate || group.startDate;
               const endDate = group.requestedEndDate || group.endDate;
+              const durationDays = Math.max(1, Math.round(((new Date(endDate || group.endDate)) - (new Date(startDate || group.startDate))) / (1000 * 60 * 60 * 24)) + 1);
+
+              const primaryItem = group.items?.[0] || group;
+              const productImage = getProductImage(primaryItem);
 
               return (
-                <div key={group.id} style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: isAwaitingCustomer ? '0 0 0 2px #7c3aed, 0 10px 30px rgba(124,58,237,0.15)' : isAwaitingPayment ? '0 0 0 2px #3b82f6, 0 10px 30px rgba(59,130,246,0.15)' : '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div
+                  key={group.id}
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04)',
+                    padding: '24px 28px',
+                    marginBottom: '20px',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  {/* Top Section */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
+                      {/* Product Image */}
+                      <img
+                        src={productImage}
+                        alt={primaryItem.milkType || 'Product'}
+                        style={{
+                          width: '90px',
+                          height: '90px',
+                          borderRadius: '12px',
+                          objectFit: 'cover',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                          border: '1px solid #f1f5f9'
+                        }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=200&auto=format&fit=crop&q=80';
+                        }}
+                      />
 
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-                    <div>
-                      {group.items.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '1.3rem' }}>{group.orderCategory === 'trial' ? '⏱' : '📅'}</span>
-                          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>
-                            {item.milkType} — {item.dailyQuantity} {getUnit(item)}/day
-                          </h3>
+                      <div>
+                        {/* Product Title */}
+                        <h3 style={{ margin: '0 0 8px 0', fontSize: '1.35rem', fontWeight: '800', color: '#0f172a' }}>
+                          {primaryItem.milkType} — {primaryItem.dailyQuantity} {getUnit(primaryItem)}/day
+                        </h3>
+
+                        {/* Badges */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '3px 12px',
+                              borderRadius: '9999px',
+                              fontSize: '0.78rem',
+                              fontWeight: '700',
+                              background: statusInfo.bg || '#dcfce7',
+                              color: statusInfo.color || '#166534'
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            {statusInfo.label || 'Active'}
+                          </span>
+
+                          <span
+                            style={{
+                              padding: '3px 12px',
+                              borderRadius: '9999px',
+                              fontSize: '0.78rem',
+                              fontWeight: '700',
+                              background: group.orderCategory === 'trial' ? '#fef9c3' : '#e0f2fe',
+                              color: group.orderCategory === 'trial' ? '#854d0e' : '#0369a1'
+                            }}
+                          >
+                            {group.orderCategory === 'trial' ? 'Single Day Trial' : `${durationDays} Days Subscription`}
+                          </span>
                         </div>
-                      ))}
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                        <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', background: statusInfo.bg, color: statusInfo.color }}>
-                          {statusInfo.label}
-                        </span>
-                        <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', background: group.orderCategory === 'trial' ? '#fef9c3' : '#dcfce7', color: group.orderCategory === 'trial' ? '#854d0e' : '#166534' }}>
-                          {group.orderCategory === 'trial' ? 'Single Day' : `${Math.max(1, Math.round(((new Date(endDate || group.endDate)) - (new Date(startDate || group.startDate))) / (1000 * 60 * 60 * 24)) + 1)} Days Subscription`}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                        {group.customerName} · {group.phone} · {group.address}
+
+                        {/* Customer Details */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.88rem', flexWrap: 'wrap' }}>
+                          <span>👤 {group.customerName || 'Customer'}</span>
+                          <span>·</span>
+                          <span>📞 {group.phone || 'N/A'}</span>
+                          <span>·</span>
+                          <span>📍 {group.address || 'N/A'}</span>
+                        </div>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a' }}>Rs. {group.totalGroupAmount}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{group.totalAmount ? 'Total Amount' : 'Est. Amount'}</div>
+
+                    {/* Top Right: Total Amount */}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: '1.65rem', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                        Rs. {group.totalGroupAmount || group.totalAmount}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px', fontWeight: '500' }}>
+                        {group.totalAmount ? 'Total Amount' : 'Est. Amount'}
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', marginBottom: (isAwaitingCustomer || isAwaitingPayment || isPendingAdmin || isRejected) ? '20px' : '0' }}>
+                  {/* Middle Section: Dates & Payment */}
+                  <div
+                    className="order-card-middle-row"
+                    style={{
+                      borderTop: '1px solid #f1f5f9',
+                      borderBottom: '1px solid #f1f5f9',
+                      padding: '16px 0',
+                      margin: '18px 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '40px',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    {/* Requested Dates */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                        <rect x="7" y="14" width="2" height="2" fill="#2563eb"></rect>
+                        <rect x="11" y="14" width="2" height="2" fill="#2563eb"></rect>
+                        <rect x="15" y="14" width="2" height="2" fill="#2563eb"></rect>
+                      </svg>
                       <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#94a3b8', marginBottom: '4px', textTransform: 'uppercase' }}>Requested Dates</div>
-                        <div style={{ fontWeight: '700', color: isAwaitingCustomer ? '#94a3b8' : '#0f172a', textDecoration: isAwaitingCustomer ? 'line-through' : 'none' }}>
-                          {startDate ? new Date(startDate).toLocaleDateString('en-GB') : '—'} to {endDate ? new Date(endDate).toLocaleDateString('en-GB') : '—'}
+                        <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>Requested Dates</div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: '700', color: isAwaitingCustomer ? '#94a3b8' : '#0f172a', marginTop: '2px', textDecoration: isAwaitingCustomer ? 'line-through' : 'none' }}>
+                          {formatDate(startDate)} to {formatDate(endDate)}{' '}
                           {group.orderCategory !== 'trial' && (
-                            <span style={{ marginLeft: '8px', fontSize: '0.8rem', color: '#4f46e5', fontWeight: '800' }}>
-                              ({Math.max(1, Math.round(((new Date(endDate || group.endDate)) - (new Date(startDate || group.startDate))) / (1000 * 60 * 60 * 24)) + 1)} Days)
-                            </span>
+                            <span style={{ color: '#2563eb', fontWeight: '800' }}>({durationDays} Days)</span>
                           )}
                         </div>
                       </div>
-                      {isAwaitingCustomer && group.offeredStartDate && (
-                        <div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#7c3aed', marginBottom: '4px', textTransform: 'uppercase' }}>Admin Proposed</div>
-                          <div style={{ fontWeight: '800', color: '#7c3aed' }}>
-                            {new Date(group.offeredStartDate).toLocaleDateString('en-GB')} to {new Date(group.offeredEndDate).toLocaleDateString('en-GB')}
-                          </div>
+                    </div>
+
+                    {/* Vertical divider */}
+                    <div className="order-card-middle-divider" style={{ width: '1px', height: '36px', background: '#e2e8f0' }}></div>
+
+                    {/* Payment */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                        <line x1="1" y1="10" x2="23" y2="10"></line>
+                        <line x1="5" y1="15" x2="9" y2="15"></line>
+                      </svg>
+                      <div>
+                        <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>Payment</div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: '800', color: (group.paymentStatus === 'PAID' || isDeliveredOrCompleted) ? '#16a34a' : '#f59e0b', marginTop: '2px' }}>
+                          {(group.paymentStatus === 'PAID' || isDeliveredOrCompleted) ? 'PAID' : (group.paymentStatus || 'Pending')}
                         </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Special Status Notifications / Alerts (if any) */}
+                  {isPendingAdmin && (
+                    <div style={{ background: '#fffbeb', borderRadius: '12px', padding: '14px 18px', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '1.3rem' }}>⏳</span>
+                        <div>
+                          <div style={{ fontWeight: '800', color: '#92400e', fontSize: '0.92rem' }}>Waiting for Admin Review</div>
+                          <div style={{ color: '#b45309', fontSize: '0.82rem' }}>Your order is in review. You can cancel it anytime before approval.</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCancelOrder(group)}
+                        style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
+                      >
+                        ✕ Cancel Order
+                      </button>
+                    </div>
+                  )}
+
+                  {isAwaitingCustomer && (
+                    <div style={{ background: '#f5f3ff', borderRadius: '12px', padding: '16px', border: '1px solid #c4b5fd', marginBottom: '18px' }}>
+                      <div style={{ fontWeight: '800', color: '#5b21b6', marginBottom: '6px', fontSize: '0.95rem' }}>Admin wants to change your delivery dates</div>
+                      {group.adminNote && (
+                        <div style={{ color: '#6d28d9', fontSize: '0.85rem', fontStyle: 'italic', marginBottom: '12px' }}>Reason: "{group.adminNote}"</div>
                       )}
-                      {group.paymentStatus && (
-                        <div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#94a3b8', marginBottom: '4px', textTransform: 'uppercase' }}>Payment</div>
-                          <div style={{ fontWeight: '700', color: group.paymentStatus === 'PAID' ? '#16a34a' : '#f59e0b' }}>
-                            {group.paymentStatus === 'PAID' ? 'PAID' : 'Pending'}
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button type="button" onClick={() => respondToOffer(group.ids, 'ACCEPT')} style={{ flex: 1, padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}>
+                          Accept New Dates
+                        </button>
+                        <button type="button" onClick={() => respondToOffer(group.ids, 'REJECT')} style={{ flex: 1, padding: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}>
+                          Reject and Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isAwaitingPayment && (
+                    <div style={{ background: '#eff6ff', borderRadius: '12px', padding: '16px', border: '1px solid #93c5fd', marginBottom: '18px' }}>
+                      <div style={{ fontWeight: '800', color: '#1e40af', marginBottom: '12px', fontSize: '0.95rem' }}>Order approved! Complete your payment to confirm delivery.</div>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <button type="button" onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('ONLINE'); }} style={{ flex: 1, minWidth: '130px', padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer' }}>
+                          Pay Online (UPI/Card)
+                        </button>
+                        <button type="button" onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('CASH'); }} style={{ flex: 1, minWidth: '130px', padding: '10px', background: '#d97706', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer' }}>
+                          Pay Cash
+                        </button>
+                        <button type="button" onClick={() => handleCancelOrder(group)} style={{ padding: '10px 16px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer' }}>
+                          ✕ Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION', 'ARRIVED', 'OUT_FOR_DELIVERY'].includes((group.deliveryStatus || '').toUpperCase().replace(/ /g, '_')) && (
+                    <div style={{ padding: '14px 18px', background: '#ecfeff', borderRadius: '12px', border: '1.5px solid #14b8a6', marginBottom: '18px' }}>
+                      <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🥛 Delivery Confirmation</div>
+                      <div style={{ fontSize: '13px', color: '#115e59', marginTop: '3px', fontWeight: '600' }}>Your delivery has arrived/handed over. Please confirm that you received your delivery.</div>
+                      <button
+                        type="button"
+                        onClick={() => handleCustomerConfirmReceipt(group.id, group.orderCategory)}
+                        style={{ marginTop: '10px', padding: '9px 18px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        ✅ Confirm Delivery Received
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Bottom Section: QR & 5 Action Buttons */}
+                  <div
+                    className="order-card-bottom-grid"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '220px 1fr',
+                      gap: '20px',
+                      alignItems: 'stretch'
+                    }}
+                  >
+                    {/* Left Column: QR Card */}
+                    <div
+                      className="order-card-qr-box"
+                      style={{
+                        background: '#fafcff',
+                        border: '1.5px dashed #cbd5e1',
+                        borderRadius: '14px',
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <div style={{ background: '#ffffff', padding: '6px', borderRadius: '8px' }}>
+                        {doorQr.token ? (
+                          <QRCodeSVG value={doorQr.token} size={132} level="H" />
+                        ) : (
+                          <div style={{ width: 132, height: 132, display: 'grid', placeItems: 'center', color: '#94a3b8', fontSize: '11px' }}>
+                            {doorQr.loading ? 'Loading QR...' : 'No QR Token'}
                           </div>
-                        </div>
+                        )}
+                      </div>
+                      <div style={{ color: '#166534', fontSize: '0.78rem', fontWeight: '800', letterSpacing: '0.5px', marginTop: '10px', textTransform: 'uppercase' }}>
+                        DOOR QR TOKEN
+                      </div>
+                      {doorQr.token && (
+                        <button
+                          type="button"
+                          onClick={copyDoorQrToken}
+                          style={{
+                            marginTop: '8px',
+                            width: '100%',
+                            background: '#eff6ff',
+                            color: '#2563eb',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '8px',
+                            padding: '7px 14px',
+                            fontSize: '0.82rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                          </svg>
+                          Copy Token
+                        </button>
                       )}
                     </div>
 
-                    {isPendingAdmin && (
-                      <div style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', borderRadius: '14px', padding: '16px 20px', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontSize: '1.4rem' }}>⏳</span>
-                          <div>
-                            <div style={{ fontWeight: '800', color: '#92400e', fontSize: '0.95rem' }}>Waiting for Admin Review</div>
-                            <div style={{ color: '#b45309', fontSize: '0.85rem' }}>Your order is in review. You can cancel it anytime before approval.</div>
-                          </div>
+                    {/* Right Column: Two-Column Action Buttons Grid */}
+                    <div className="order-card-action-grid">
+                      {/* Row 1, Col 1: Track Order Live */}
+                      <button
+                        type="button"
+                        className="order-card-action-btn"
+                        onClick={() => openTrackOrder(group.id, group.orderCategory, 'timeline')}
+                        style={{
+                          background: '#1d68f0',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(29, 104, 240, 0.25)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <rect x="1" y="3" width="15" height="13"></rect>
+                            <polygon points="16 8 20 8 23 11 23 16 16 8"></polygon>
+                            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                          </svg>
+                          <span style={{ fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Track Order Live
+                          </span>
                         </div>
-                        <button
-                          onClick={() => handleCancelOrder(group)}
-                          style={{ padding: '10px 20px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(239, 68, 68, 0.25)' }}
-                        >
-                          ✕ Cancel Order
-                        </button>
-                      </div>
-                    )}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '6px' }}>
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
 
-                    {isAwaitingCustomer && (
-                      <div style={{ background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', borderRadius: '14px', padding: '20px', border: '1px solid #c4b5fd' }}>
-                        <div style={{ fontWeight: '800', color: '#5b21b6', marginBottom: '6px' }}>Admin wants to change your delivery dates</div>
-                        {group.adminNote && (
-                          <div style={{ color: '#6d28d9', fontSize: '0.9rem', fontStyle: 'italic', marginBottom: '16px' }}>Reason: "{group.adminNote}"</div>
-                        )}
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                          <button onClick={() => respondToOffer(group.ids, 'ACCEPT')} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #16a34a, #15803d)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
-                            Accept New Dates
-                          </button>
-                          <button onClick={() => respondToOffer(group.ids, 'REJECT')} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
-                            Reject and Cancel
-                          </button>
+                      {/* Row 1, Col 2: View Daily Schedule & History */}
+                      <button
+                        type="button"
+                        className="order-card-action-btn"
+                        onClick={() => openTrackOrder(group.id, group.orderCategory, 'schedule')}
+                        style={{
+                          background: '#6366f1',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                          </svg>
+                          <span style={{ fontSize: '0.86rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            View Daily Schedule & History
+                          </span>
                         </div>
-                      </div>
-                    )}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '6px' }}>
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
 
-                    {isAwaitingPayment && (
-                      <div style={{ background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', borderRadius: '14px', padding: '20px', border: '1px solid #93c5fd' }}>
-                        <div style={{ fontWeight: '800', color: '#1e40af', marginBottom: '16px' }}>Order approved! Complete your payment to confirm delivery.</div>
-                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                          <button onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('ONLINE'); }} style={{ flex: 1, minWidth: '140px', padding: '12px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
-                            Pay Online (UPI/Card)
-                          </button>
-                          <button onClick={() => { setPayModal({ open: true, id: group.id, ids: group.ids, amount: group.totalGroupAmount }); setPayMethod('CASH'); }} style={{ flex: 1, minWidth: '140px', padding: '12px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
-                            Pay Cash
-                          </button>
-                          <button onClick={() => handleCancelOrder(group)} style={{ padding: '12px 18px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '10px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' }}>
-                            ✕ Cancel Order
-                          </button>
+                      {/* Row 2, Col 1: Pay for Deliveries (Daily / Weekly / Monthly) */}
+                      <button
+                        type="button"
+                        className="order-card-action-btn"
+                        onClick={() => openDeliveryPaymentModal(group)}
+                        style={{
+                          background: '#047857',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(4, 120, 87, 0.25)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="currentColor"></rect>
+                            <line x1="12" y1="8" x2="12" y2="16" stroke="#047857" strokeWidth="2.8"></line>
+                            <line x1="8" y1="12" x2="16" y2="12" stroke="#047857" strokeWidth="2.8"></line>
+                          </svg>
+                          <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Pay for Deliveries (Daily / Weekly / Monthly)
+                          </span>
                         </div>
-                      </div>
-                    )}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '6px' }}>
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
 
-                    {isActive && (
-                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {!['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION', 'ARRIVED', 'OUT_FOR_DELIVERY'].includes((group.deliveryStatus || '').toUpperCase().replace(/ /g, '_')) && (
-                          <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '14px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
-                            <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>🥛 Delivery Confirmation</div>
-                            <div style={{ fontSize: '13px', color: '#115e59', marginTop: '4px', fontWeight: '600' }}>Your delivery has arrived/handed over. Please confirm that you received your delivery.</div>
-                            <button
-                              onClick={() => handleCustomerConfirmReceipt(group.id, group.orderCategory)}
-                              style={{ marginTop: '12px', padding: '12px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '800', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}
-                            >
-                              ✅ Confirm Delivery Received
-                            </button>
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                          <div style={{ padding: '8px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                            {doorQr.token ? (
-                              <QRCodeSVG value={doorQr.token} size={90} level="H" />
-                            ) : (
-                              <div style={{ width: 90, height: 90, display: 'grid', placeItems: 'center', color: '#94a3b8', fontSize: '11px' }}>
-                                {doorQr.loading ? 'Loading' : 'No QR'}
-                              </div>
-                            )}
-                            <span style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', fontWeight: 'bold', textTransform: 'uppercase' }}>Door QR Token</span>
-                            {doorQr.token && (
-                              <button onClick={copyDoorQrToken} style={{ marginTop: '5px', border: 'none', background: 'transparent', color: '#2563eb', cursor: 'pointer', fontSize: '10px', fontWeight: 800 }}>
-                                Copy token
-                              </button>
-                            )}
-                          </div>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <button onClick={() => openTrackOrder(group.id, group.orderCategory, 'timeline')} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
-                              🚴 Track Order Live
-                            </button>
-                            {group.orderCategory !== 'trial' && (
-                              <button
-                                onClick={() => openTrackOrder(group.id, group.orderCategory, 'schedule')}
-                                style={{
-                                  padding: '12px 16px',
-                                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '10px',
-                                  fontWeight: '700',
-                                  fontSize: '0.9rem',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '6px',
-                                  boxShadow: '0 4px 10px rgba(99,102,241,0.25)',
-                                }}
-                              >
-                                📅 View Daily Schedule & History
-                              </button>
-                            )}
-                            {group.orderCategory !== 'trial' && (
-                              <button
-                                onClick={() => openDeliveryPaymentModal(group)}
-                                style={{
-                                  padding: '12px 16px',
-                                  background: 'linear-gradient(135deg, #059669, #047857)',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '10px',
-                                  fontWeight: '700',
-                                  fontSize: '0.9rem',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '6px',
-                                  boxShadow: '0 4px 10px rgba(5,150,105,0.3)',
-                                }}
-                              >
-                                💳 Pay for Deliveries (Daily / Weekly / Monthly)
-                              </button>
-                            )}
-                            {group.orderCategory !== 'trial' && (
-                              <button
-                                onClick={() => {
-                                  setSelectedSubForExtra(group.id);
-                                  setShowRequests(true);
-                                }}
-                                style={{
-                                  padding: '12px 16px',
-                                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '10px',
-                                  fontWeight: '700',
-                                  fontSize: '0.9rem',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '6px',
-                                  boxShadow: '0 4px 10px rgba(2,132,199,0.3)',
-                                }}
-                              >
-                                🥛 Request Extra Delivery
-                              </button>
-                            )}
-                            <button onClick={() => downloadBill(group)} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}>
-                              📄 Download Invoice
-                            </button>
-                            {group.deliveryStatus !== 'Delivered' && group.deliveryStatus !== 'Completed' && (
-                              <button
-                                onClick={() => handleCancelOrder(group)}
-                                style={{ alignSelf: 'flex-start', padding: '6px 12px', background: 'transparent', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '6px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}
-                              >
-                                ✕ Cancel Order
-                              </button>
-                            )}
-                          </div>
+                      {/* Row 2, Col 2: Request Extra Delivery */}
+                      <button
+                        type="button"
+                        className="order-card-action-btn"
+                        onClick={() => {
+                          setSelectedSubForExtra(group.id);
+                          setShowRequests(true);
+                        }}
+                        style={{
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="currentColor"></rect>
+                            <line x1="12" y1="8" x2="12" y2="16" stroke="#0284c7" strokeWidth="2.8"></line>
+                            <line x1="8" y1="12" x2="16" y2="12" stroke="#0284c7" strokeWidth="2.8"></line>
+                          </svg>
+                          <span style={{ fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Request Extra Delivery
+                          </span>
                         </div>
-                      </div>
-                    )}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '6px' }}>
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
 
-                    {isDeliveredOrCompleted && (
-                      <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
-                        {group.orderCategory !== 'trial' && (
-                          <button
-                            onClick={() => openTrackOrder(group.id, group.orderCategory, 'schedule')}
-                            style={{
-                              padding: '12px 20px',
-                              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '10px',
-                              fontWeight: '700',
-                              fontSize: '0.9rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              boxShadow: '0 4px 10px rgba(99,102,241,0.25)',
-                            }}
-                          >
-                            📅 View Daily Schedule & History
-                          </button>
-                        )}
-                        {group.orderCategory !== 'trial' && (
-                          <button
-                            onClick={() => openDeliveryPaymentModal(group)}
-                            style={{
-                              padding: '12px 20px',
-                              background: 'linear-gradient(135deg, #059669, #047857)',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '10px',
-                              fontWeight: '700',
-                              fontSize: '0.9rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              boxShadow: '0 4px 10px rgba(5,150,105,0.25)',
-                            }}
-                          >
-                            💳 Pay for Deliveries (Daily / Weekly / Monthly)
-                          </button>
-                        )}
-                        {group.orderCategory !== 'trial' && (
-                          <button
-                            onClick={() => {
-                              setSelectedSubForExtra(group.id);
-                              setShowRequests(true);
-                            }}
-                            style={{
-                              padding: '12px 20px',
-                              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '10px',
-                              fontWeight: '700',
-                              fontSize: '0.9rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              boxShadow: '0 4px 10px rgba(2,132,199,0.25)',
-                            }}
-                          >
-                            🥛 Request Extra Delivery
-                          </button>
-                        )}
-                        <button onClick={() => downloadBill(group)} style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.2)' }}>
-                          📄 Download Invoice
-                        </button>
-                      </div>
-                    )}
+                      {/* Row 3: Download Invoice — full width across both columns */}
+                      <button
+                        type="button"
+                        className="order-card-action-btn order-card-full-span"
+                        onClick={() => downloadBill(group)}
+                        style={{
+                          background: '#10b981',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                          </svg>
+                          <span style={{ fontSize: '0.92rem' }}>Download Invoice</span>
+                        </div>
+                        <span style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                          </svg>
+                        </span>
+                      </button>
 
-                    {isRejected && (
-                      <div style={{ background: '#fef2f2', borderRadius: '14px', padding: '16px 20px', border: '1px solid #fca5a5', color: '#991b1b', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                        <div>This order was cancelled. You may place a new order from the products page.</div>
-                        <button
-                          onClick={() => handleDeleteCancelledOrder(group)}
-                          style={{ padding: '8px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                          title="Delete cancelled order from view"
-                        >
-                          🗑️ Remove
-                        </button>
-                      </div>
-                    )}
+                      {/* Row 4, Col 1: Feedback */}
+                      <button
+                        type="button"
+                        className="order-card-action-btn"
+                        onClick={() => setFeedbackModal({ open: true, order: group })}
+                        style={{
+                          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(217, 119, 6, 0.25)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                          <svg width="19" height="19" viewBox="0 0 24 24" fill="#ffffff" stroke="none" style={{ flexShrink: 0 }}>
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                          </svg>
+                          <span style={{ fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Feedback
+                          </span>
+                        </div>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '6px' }}>
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
+
+                      {/* Row 4, Col 2: Complaint */}
+                      <button
+                        type="button"
+                        className="order-card-action-btn"
+                        onClick={() => setComplaintModal({ open: true, order: group })}
+                        style={{
+                          background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                          <svg width="19" height="19" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13" stroke="#dc2626" strokeWidth="2.5"></line>
+                            <circle cx="12" cy="17" r="1.3" fill="#dc2626"></circle>
+                          </svg>
+                          <span style={{ fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Complaint
+                          </span>
+                        </div>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: '6px' }}>
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
+
+                  {isRejected && (
+                    <div style={{ marginTop: '14px', background: '#fef2f2', borderRadius: '10px', padding: '12px 16px', border: '1px solid #fca5a5', color: '#991b1b', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ fontSize: '0.88rem' }}>This order was cancelled. You may place a new order from the products page.</div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCancelledOrder(group)}
+                        style={{ padding: '6px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}
+                        title="Delete cancelled order from view"
+                      >
+                        🗑️ Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1407,10 +1851,51 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
                         </div>
                       )}
 
+                      {['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(trackModal.data.deliveryStatus) && (
+                        <div style={{ marginBottom: '16px', padding: '14px 18px', background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', borderRadius: '14px', border: '1.5px solid #93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                          <div>
+                            <div style={{ fontSize: '14px', fontWeight: '800', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>🚚</span> Your order is on the way!
+                            </div>
+                            <div style={{ fontSize: '12.5px', color: '#1e3a8a', marginTop: '2px' }}>
+                              {trackModal.data.formattedEta ? (
+                                <span>Estimated Delivery Time (ETA): <strong>{trackModal.data.formattedEta}</strong></span>
+                              ) : (
+                                <span>Your fresh milk is out for delivery.</span>
+                              )}
+                            </div>
+                          </div>
+                          {trackModal.data.formattedEta && (
+                            <div style={{ background: '#2563eb', color: 'white', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', flexShrink: 0 }}>
+                              ETA: {trackModal.data.formattedEta}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {(trackModal.data.canCustomerConfirm || trackModal.data.awaitingUserConfirmation || (!['Delivered', 'DELIVERED'].includes(trackModal.data.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION', 'ARRIVED', 'OUT_FOR_DELIVERY'].includes((trackModal.data.deliveryStatus || '').toUpperCase().replace(/ /g, '_')))) && (
                         <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '16px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
                           <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>🥛 Confirm Delivery Received</div>
                           <div style={{ fontSize: '12px', color: '#115e59', marginTop: '4px' }}>The delivery partner has reached / handed over your milk product. Please confirm that you received your delivery.</div>
+
+                          {trackModal.data.deliveryProof && (
+                            <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.9)', padding: '10px 14px', borderRadius: '12px', border: '1px solid #99f6e4', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <img
+                                src={trackModal.data.deliveryProof}
+                                alt="Delivery Proof"
+                                style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #0d9488', cursor: 'pointer', flexShrink: 0 }}
+                                onClick={() => window.open(trackModal.data.deliveryProof, '_blank')}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0f766e' }}>📸 Door Delivery Photo Proof</div>
+                                <div style={{ fontSize: '11px', color: '#115e59', marginTop: '1px' }}>Captured by delivery partner at your door</div>
+                                <a href={trackModal.data.deliveryProof} target="_blank" rel="noreferrer" style={{ fontSize: '11.5px', color: '#0284c7', fontWeight: '700', textDecoration: 'underline', marginTop: '2px', display: 'inline-block' }}>
+                                  View Full Photo ↗
+                                </a>
+                              </div>
+                            </div>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => handleCustomerConfirmReceipt(trackModal.data.orderId, trackModal.data.orderType)}
@@ -1767,6 +2252,40 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
           </div>
         </div>
       )}
+
+      {/* Customer Feedback Modal */}
+      <FeedbackModal
+        isOpen={feedbackModal.open}
+        order={feedbackModal.order}
+        onClose={() => setFeedbackModal({ open: false, order: null })}
+        onFeedbackSubmitted={() => {
+          fetchOrders();
+        }}
+      />
+
+      {/* Customer Raise Complaint Modal */}
+      <RaiseComplaintModal
+        isOpen={complaintModal.open}
+        order={complaintModal.order}
+        onClose={() => setComplaintModal({ open: false, order: null })}
+        onOpenMyComplaints={() => setShowMyComplaints(true)}
+        onComplaintSubmitted={() => {
+          fetchOrders();
+        }}
+      />
+
+      {/* Customer My Complaints Modal */}
+      <MyComplaintsModal
+        isOpen={showMyComplaints}
+        onClose={() => setShowMyComplaints(false)}
+      />
+
+      {/* Customer Support Chat Modal */}
+      <SupportChatModal
+        isOpen={showSupportChat}
+        onClose={() => setShowSupportChat(false)}
+        role="USER"
+      />
     </div>
   );
 };

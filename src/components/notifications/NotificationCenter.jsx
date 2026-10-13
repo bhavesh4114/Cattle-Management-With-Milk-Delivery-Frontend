@@ -33,8 +33,9 @@ function formatTimeAgo(dateStr) {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 }
 
-const NotificationCenter = ({ onNavigateTab }) => {
+const NotificationCenter = ({ onNavigateTab, panel = null }) => {
   const navigate = useNavigate();
+  const effectivePanel = panel || (window.location.pathname.includes('milk-admin') ? 'milk' : (window.location.pathname.startsWith('/admin') ? 'cattle' : 'milk'));
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -44,7 +45,7 @@ const NotificationCenter = ({ onNavigateTab }) => {
 
   const fetchUnreadCount = async () => {
     try {
-      const res = await api.get('/alerts/unread-count');
+      const res = await api.get(`/alerts/unread-count?panel=${effectivePanel}`);
       setUnreadCount(res.data?.unreadCount || 0);
     } catch (err) {
       // Ignore auth/polling errors
@@ -54,7 +55,7 @@ const NotificationCenter = ({ onNavigateTab }) => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/alerts/notifications?limit=30');
+      const res = await api.get(`/alerts/notifications?limit=30&panel=${effectivePanel}`);
       setNotifications(res.data || []);
       const unread = (res.data || []).filter((n) => !n.isRead).length;
       setUnreadCount(unread);
@@ -129,6 +130,18 @@ const NotificationCenter = ({ onNavigateTab }) => {
     setIsOpen(false);
 
     const isCustomerView = !window.location.pathname.includes('milk-admin') && notif.role !== 'DELIVERY_BOY';
+
+    const isExtraDelivery =
+      notif.type === 'EXTRA_DELIVERY_OFFER' ||
+      notif.type === 'EXTRA_DELIVERY_ACCEPTED' ||
+      notif.actionType === 'VIEW_DELIVERY_REQUESTS' ||
+      notif.entityType === 'MilkDeliveryRequest';
+
+    if (isExtraDelivery) {
+      window.dispatchEvent(new CustomEvent('open-extra-delivery-requests'));
+      navigate('/admin/products?tab=extra-delivery');
+      return;
+    }
 
     // 1. If customer delivery / order notification, dispatch event and navigate to track tab with orderId
     const isDeliveryNotif =

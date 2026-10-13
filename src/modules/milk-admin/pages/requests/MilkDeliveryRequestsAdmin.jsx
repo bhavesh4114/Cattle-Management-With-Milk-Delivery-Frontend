@@ -380,7 +380,11 @@ const MilkDeliveryRequestsAdmin = () => {
               </thead>
               <tbody>
                 {requests.map((r) => {
-                  const badge = getStatusBadge(r.status);
+                  const effectiveStatus =
+                    (r.deliveryStatus && r.deliveryStatus.toUpperCase() === "DELIVERED") || r.status === "DELIVERED"
+                      ? "DELIVERED"
+                      : r.deliveryStatus || r.status;
+                  const badge = getStatusBadge(effectiveStatus);
                   const customerName = r.customer?.name || "Customer #" + r.customerId;
                   const regBoy = r.regularDeliveryBoy;
                   const isPendingOrRequested = r.status === "EXTRA_REQUESTED" || r.status === "PENDING";
@@ -526,31 +530,15 @@ const MilkDeliveryRequestsAdmin = () => {
                             </span>
                           )}
 
-                          {/* Step 6: Customer Accepted -> Assign Delivery Boy */}
-                          {isAccepted && (
-                            <button
-                              onClick={() => openAssignModal(r)}
-                              disabled={actionLoading}
-                              style={{
-                                background: "linear-gradient(135deg, #4f46e5, #4338ca)",
-                                color: "white",
-                                border: "none",
-                                padding: "7px 16px",
-                                borderRadius: "6px",
-                                fontSize: "12px",
-                                fontWeight: "700",
-                                cursor: "pointer",
-                                boxShadow: "0 2px 6px rgba(79, 70, 229, 0.3)",
-                              }}
-                            >
-                              🚴 Assign Delivery Boy
-                            </button>
-                          )}
-
-                          {/* Assigned / Active */}
-                          {r.assignedDeliveryBoy && (
-                            <div style={{ fontSize: "12px", color: "#0f766e", fontWeight: "700" }}>
-                              Assigned to: {r.assignedDeliveryBoy.name}
+                          {/* Auto-linked with Regular Subscription once Accepted / Assigned */}
+                          {(isAccepted || r.status === "EXTRA_ASSIGNED" || r.assignedDeliveryBoy) && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                              <span style={{ fontSize: "12px", color: "#166534", fontWeight: "700" }}>
+                                ✅ Linked with Regular Subscription
+                              </span>
+                              <span style={{ fontSize: "11.5px", color: "#0f766e" }}>
+                                Delivery Boy: {r.assignedDeliveryBoy?.name || r.regularDeliveryBoy?.name || "Regular Delivery Boy"}
+                              </span>
                             </div>
                           )}
                         </div>

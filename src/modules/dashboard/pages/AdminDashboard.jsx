@@ -32,6 +32,16 @@ import StaffMilkReportEntry from "../../milk-admin/pages/StaffMilkReportEntry";
 import MyDeliveries from "../../milk-admin/pages/MyDeliveries";
 import DeliveryBoyManagement from "../../milk-admin/pages/DeliveryBoyManagement";
 import MilkDeliveryRequestsCustomer from "../../milk-admin/pages/requests/MilkDeliveryRequestsCustomer";
+import AdminFeedbackComplaints from "../../feedback/pages/AdminFeedbackComplaints";
+import AdminChatView from "../../chat/components/AdminChatView";
+import ParticipantChatView from "../../chat/components/ParticipantChatView";
+import MyReferral from "../../milk-admin/pages/offers/MyReferral";
+import UserProfile from "../../profile/pages/UserProfile";
+import MilkPricingAdmin from "../../milk-admin/pages/pricing/MilkPricingAdmin";
+import MilkSubscriptionsAdmin from "../../milk-admin/pages/subscriptions/MilkSubscriptionsAdmin";
+import MilkTrialsAdmin from "../../milk-admin/pages/trials/MilkTrialsAdmin";
+import chatApi from "../../../services/chatApi";
+import { initChatSocket } from "../../../services/chatSocket";
 import { hasPermission } from "../../../utils/permissions";
 
 const uiIcons = {
@@ -48,6 +58,11 @@ const uiIcons = {
   orders: "\u25A3",
   reports: "\u25A5",
   alerts: "!",
+  staffMilkReport: "📋",
+  milkPricing: "💰",
+  milkSubscriptions: "📝",
+  milkTrials: "🥛",
+  myDeliveries: "🛵",
 };
 
 const sections = [
@@ -106,6 +121,18 @@ const sections = [
     path: "/admin/cow-treatment",
   },
   {
+    key: "items",
+    label: "Items",
+    icon: uiIcons.items,
+    path: "/admin/items",
+  },
+  {
+    key: "orders",
+    label: "Orders",
+    icon: uiIcons.orders,
+    path: "/admin/orders",
+  },
+  {
     key: "reports",
     label: "Reports",
     icon: uiIcons.reports,
@@ -118,16 +145,46 @@ const sections = [
     path: "/admin/alert-reports",
   },
   {
+    key: "staff-milk-report",
+    label: "Staff Milk Processing",
+    icon: uiIcons.staffMilkReport,
+    path: "/admin/staff-milk-report",
+  },
+  {
+    key: "milk-pricing",
+    label: "Milk Pricing",
+    icon: uiIcons.milkPricing,
+    path: "/admin/milk-pricing",
+  },
+  {
+    key: "milk-subscriptions",
+    label: "Milk Subscriptions",
+    icon: uiIcons.milkSubscriptions,
+    path: "/admin/milk-subscriptions",
+  },
+  {
+    key: "milk-trials",
+    label: "Milk Trials",
+    icon: uiIcons.milkTrials,
+    path: "/admin/milk-trials",
+  },
+  {
+    key: "my-deliveries",
+    label: "My Deliveries",
+    icon: uiIcons.myDeliveries,
+    path: "/admin/my-deliveries",
+  },
+  {
     key: "products",
-    label: "All Products",
-    icon: "\uD83D\uDCE6",
+    label: "Products",
+    icon: "🛍️",
     path: "/admin/products",
   },
   {
-    key: "milk-requests",
-    label: "Milk Delivery Request",
-    icon: "🥛",
-    path: "/admin/milk-delivery-requests",
+    key: "chat",
+    label: "Support Chat",
+    icon: "💬",
+    path: "/admin/chat",
   },
 ];
 
@@ -144,6 +201,7 @@ const sectionByKey = sections.reduce((map, section) => {
 const configs = {};
 
 const quickActions = [
+  ["products", "Products", "🛍️"],
   ["cows", "Manage Cows", uiIcons.cows],
   ["feed", "Feed Plan", uiIcons.feed],
   ["intake", "Food Intake", uiIcons.intake],
@@ -151,8 +209,15 @@ const quickActions = [
   ["sales", "Cow Sold", uiIcons.sales],
   ["treatments", "Cow Treatment", uiIcons.treatments],
   ["reports", "Reports", uiIcons.reports],
+  ["alerts", "Alert Reports", uiIcons.alerts],
   ["deaths", "Cow Death", uiIcons.deaths],
   ["items", "Items", uiIcons.items],
+  ["orders", "Orders", uiIcons.orders],
+  ["staff-milk-report", "Staff Milk Processing", uiIcons.staffMilkReport],
+  ["milk-pricing", "Milk Pricing", uiIcons.milkPricing],
+  ["milk-subscriptions", "Milk Subscriptions", uiIcons.milkSubscriptions],
+  ["milk-trials", "Milk Trials", uiIcons.milkTrials],
+  ["my-deliveries", "My Deliveries", uiIcons.myDeliveries],
 ];
 
 const optionalFields = [
@@ -192,6 +257,13 @@ const getActiveKey = (pathname) => {
   if (pathname.startsWith("/admin/stock/current")) return "current-stock";
   if (pathname.startsWith("/admin/items")) return "items";
   if (pathname.startsWith("/admin/orders")) return "orders";
+  if (pathname.startsWith("/admin/staff-milk-report")) return "staff-milk-report";
+  if (pathname.startsWith("/admin/milk-pricing")) return "milk-pricing";
+  if (pathname.startsWith("/admin/milk-subscriptions")) return "milk-subscriptions";
+  if (pathname.startsWith("/admin/milk-trials")) return "milk-trials";
+  if (pathname.startsWith("/admin/my-deliveries")) return "my-deliveries";
+  if (pathname.startsWith("/admin/products")) return "products";
+  if (pathname.startsWith("/admin/chat")) return "chat";
   return sectionByPath[pathname] || "dashboard";
 };
 
@@ -984,6 +1056,74 @@ const AdminDashboard = () => {
   const [dashboard, setDashboard] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showFarmAlerts, setShowFarmAlerts] = useState(false);
+  const [cartCount, setCartCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem('userProductCart');
+      return saved ? JSON.parse(saved).length : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    const handleCartUpdate = (e) => {
+      if (e?.detail?.count !== undefined) {
+        setCartCount(e.detail.count);
+      } else {
+        try {
+          const saved = localStorage.getItem('userProductCart');
+          setCartCount(saved ? JSON.parse(saved).length : 0);
+        } catch {
+          setCartCount(0);
+        }
+      }
+    };
+    window.addEventListener('cart-updated', handleCartUpdate);
+    window.addEventListener('storage', handleCartUpdate);
+    return () => {
+      window.removeEventListener('cart-updated', handleCartUpdate);
+      window.removeEventListener('storage', handleCartUpdate);
+    };
+  }, []);
+
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const data = await chatApi.getUnreadCount();
+        setUnreadChatCount(data?.total || 0);
+      } catch {
+        // silent
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+
+    const socket = initChatSocket();
+    if (socket) {
+      const handleUpdate = () => fetchUnread();
+      socket.on("conversation_updated", handleUpdate);
+      socket.on("new_message", handleUpdate);
+      socket.on("messages_read", handleUpdate);
+
+      return () => {
+        clearInterval(interval);
+        socket.off("conversation_updated", handleUpdate);
+        socket.off("new_message", handleUpdate);
+        socket.off("messages_read", handleUpdate);
+      };
+    }
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleOpenCart = () => {
+    navigate('/admin/products?tab=cart');
+    window.dispatchEvent(new CustomEvent('open-cart'));
+  };
+
   const [cows, setCows] = useState([]);
   const [records, setRecords] = useState([]);
   const [form, setForm] = useState({});
@@ -992,19 +1132,25 @@ const AdminDashboard = () => {
 
   const roleName = (adminData?.customRole?.name || "").toLowerCase();
   const isUser = adminData?.role === "CUSTOM" && (roleName.includes("user") || (adminData?.name || "").toLowerCase().includes("user"));
+  const isDeliveryBoy = roleName.includes("delivery") || roleName.includes("delever");
 
-  const loadDashboard = async () => {
+  const loadDashboard = async (currentAdmin = adminData) => {
     try {
       const dashboardRes = await api.get("/admin/dashboard");
       setDashboard(dashboardRes.data);
     } catch (err) {
       console.warn("Could not fetch dashboard stats", err);
     }
-    try {
-      const cowRes = await api.get("/admin/cows");
-      setCows(cowRes.data);
-    } catch (err) {
-      console.warn("Could not fetch cows", err);
+    const canViewCows = currentAdmin?.role === "ADMIN" || hasPermission(currentAdmin, "cows", "view");
+    if (canViewCows) {
+      try {
+        const cowRes = await api.get("/admin/cows");
+        setCows(cowRes.data || []);
+      } catch (err) {
+        console.warn("Could not fetch cows", err);
+      }
+    } else {
+      setCows([]);
     }
   };
 
@@ -1026,20 +1172,37 @@ const AdminDashboard = () => {
           localStorage.setItem("adminData", JSON.stringify(res.data.admin));
           setAdminData(res.data.admin);
 
-          const roleName = res.data.admin?.customRole?.name?.toLowerCase() || "";
-          if (roleName.includes("delivery") || roleName.includes("delever") || roleName.includes("milk") || res.data.admin?.permissions?.some(p => String(p).toLowerCase().includes("deliver"))) {
+          const rName = res.data.admin?.customRole?.name?.toLowerCase() || "";
+          if (rName.includes("delivery") || rName.includes("delever") || rName.includes("milk") || res.data.admin?.permissions?.some(p => String(p).toLowerCase().includes("deliver"))) {
             navigate("/milk-admin/dashboard");
-            return;
+            return null;
           }
+          return res.data.admin;
         }
       } catch (err) {
         console.error("Failed to fetch profile");
       }
+      return null;
     };
 
     const timer = window.setTimeout(() => {
-      fetchProfile().then(() => {
-        loadDashboard().catch(() => setMessage("Unable to load dashboard data"));
+      fetchProfile().then((freshAdmin) => {
+        const effectiveAdmin = freshAdmin || adminData;
+        loadDashboard(effectiveAdmin).catch(() => setMessage("Unable to load dashboard data"));
+
+        if (effectiveAdmin?.role !== "ADMIN" && (location.pathname === "/admin" || location.pathname === "/admin/dashboard" || location.pathname === "/admin/")) {
+          const visible = sections.filter(section => {
+            if (section.key === "roles" || section.key === "delivery-boys") return false;
+            if (section.key === "my-deliveries") {
+              const rn = (effectiveAdmin?.customRole?.name || "").toLowerCase();
+              return hasPermission(effectiveAdmin, "my-deliveries", "view") || rn.includes("delivery") || rn.includes("delever");
+            }
+            return hasPermission(effectiveAdmin, section.key, "view");
+          });
+          if (visible.length > 0 && !hasPermission(effectiveAdmin, "dashboard", "view")) {
+            navigate(visible[0].path, { replace: true });
+          }
+        }
       });
     }, 0);
 
@@ -1130,22 +1293,35 @@ const AdminDashboard = () => {
         </div>
         <nav className="sidebar-nav">
           {sections.filter(section => {
-            // Role creation should be admin only, or specific permission if implemented
-            if (section.key === "roles") {
-              return adminData?.role === "ADMIN";
+            // For full ADMIN, keep Cattle Admin focused on cattle sections only
+            if (adminData?.role === "ADMIN") {
+              const milkAdminOnlySections = [
+                "items",
+                "orders",
+                "staff-milk-report",
+                "milk-pricing",
+                "milk-subscriptions",
+                "milk-trials",
+                "my-deliveries",
+                "products",
+                "chat"
+              ];
+              return !milkAdminOnlySections.includes(section.key);
+            }
+
+            // For custom role users:
+            if (section.key === "roles" || section.key === "delivery-boys") {
+              return false;
             }
             if (section.key === "my-deliveries") {
               const rn = (adminData?.customRole?.name || "").toLowerCase();
               return hasPermission(adminData, "my-deliveries", "view") || rn.includes("delivery") || rn.includes("delever");
             }
-            if (section.key === "delivery-boys") {
-              return adminData?.role === "ADMIN";
-            }
             if (section.key === "products") {
-              return adminData?.role === "ADMIN" || (adminData?.role === "CUSTOM" && (adminData?.name?.toLowerCase().includes("user") || adminData?.customRole?.name?.toLowerCase().includes("user")));
+              return isUser || hasPermission(adminData, "products", "view");
             }
-            if (section.key === "milk-requests") {
-              return adminData?.role === "ADMIN";
+            if (section.key === "chat") {
+              return true;
             }
             return hasPermission(adminData, section.key, "view");
           }).map((section) => (
@@ -1163,10 +1339,29 @@ const AdminDashboard = () => {
                   Order Milk
                 </>
               ) : (
-                <>
-                  <span>{section.icon}</span>
-                  {section.label}
-                </>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span>{section.icon}</span>
+                    {section.label}
+                  </div>
+                  {section.key === "chat" && unreadChatCount > 0 && (
+                    <span
+                      style={{
+                        background: "#ef4444",
+                        color: "white",
+                        borderRadius: "999px",
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                        padding: "2px 7px",
+                        minWidth: "18px",
+                        textAlign: "center",
+                        lineHeight: "14px"
+                      }}
+                    >
+                      {unreadChatCount}
+                    </span>
+                  )}
+                </div>
               )}
             </button>
           ))}
@@ -1191,7 +1386,7 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <NotificationCenter />
+            <NotificationCenter panel="cattle" />
             {!isUser && (
               <button type="button" onClick={() => setShowFarmAlerts(true)}>
                 🔔 Farm Alerts
@@ -1207,7 +1402,7 @@ const AdminDashboard = () => {
         </header>
 
         <section className="admin-content">
-          <SpecialAlertsBanner />
+          <SpecialAlertsBanner panel="cattle" />
           {/* Access Control Check */}
           {(() => {
             const perms = adminData?.permissions || [];
@@ -1239,6 +1434,8 @@ const AdminDashboard = () => {
             } else if (requiredPermission === "products" || requiredPermission === "milk-requests") {
               const isUser = adminData?.role === "CUSTOM" && (adminData?.name?.toLowerCase().includes("user") || adminData?.customRole?.name?.toLowerCase().includes("user"));
               hasAccess = adminData?.role === "ADMIN" || isUser || hasPermission(adminData, requiredPermission, "view");
+            } else if (requiredPermission === "chat" || requiredPermission === "my-referral" || requiredPermission === "my-profile") {
+              hasAccess = true;
             } else {
               hasAccess = hasPermission(adminData, requiredPermission, "view");
             }
@@ -1339,12 +1536,25 @@ const AdminDashboard = () => {
                 {currentActive === "orders" && <Orders />}
                 {currentActive === "products" && <UserProducts />}
                 {currentActive === "milk-requests" && <MilkDeliveryRequestsCustomer />}
+                {currentActive === "feedback-complaints" && <AdminFeedbackComplaints />}
+                {currentActive === "chat" && (
+                  adminData?.role === "ADMIN" ? (
+                    <AdminChatView />
+                  ) : (
+                    <ParticipantChatView role={isDeliveryBoy ? "DELIVERY_BOY" : "USER"} />
+                  )
+                )}
+                {currentActive === "my-referral" && <MyReferral />}
+                {currentActive === "my-profile" && <UserProfile adminData={adminData} />}
 
                 {currentActive === "reports" && <Report />}
 
                 {currentActive === "alerts" && <AlertReports cows={cows} />}
 
                 {currentActive === "staff-milk-report" && <StaffMilkReportEntry adminData={adminData} />}
+                {currentActive === "milk-pricing" && <MilkPricingAdmin />}
+                {currentActive === "milk-subscriptions" && <MilkSubscriptionsAdmin />}
+                {currentActive === "milk-trials" && <MilkTrialsAdmin />}
                 {currentActive === "my-deliveries" && <MyDeliveries />}
                 {currentActive === "delivery-boys" && <DeliveryBoyManagement />}
 

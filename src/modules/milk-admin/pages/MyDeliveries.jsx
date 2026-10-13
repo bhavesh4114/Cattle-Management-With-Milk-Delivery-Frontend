@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../../services/api";
+import DeliveryPhotoCaptureModal from "../components/DeliveryPhotoCaptureModal";
+import DeliveryProofViewModal from "../components/DeliveryProofViewModal";
 
 const statusColors = {
   Assigned: { bg: "#dbeafe", color: "#1d4ed8", dot: "#3b82f6" },
@@ -43,8 +45,11 @@ const MyDeliveries = () => {
     customer: null,
     orders: [],
     selected: {},
+    photos: {},
     loading: false,
   });
+  const [cameraModal, setCameraModal] = useState({ isOpen: false, ord: null });
+  const [proofModal, setProofModal] = useState({ isOpen: false, data: null });
   const [tabFilter, setTabFilter] = useState("ALL"); // "ALL", "ACTIVE", "COMPLETED"
 
   const showToast = (text, type = "success") => {
@@ -151,20 +156,26 @@ const MyDeliveries = () => {
     try {
       setQrModal((prev) => ({ ...prev, loading: true, error: "" }));
       const token = (tokenOverride || qrModal.token).trim();
-      const res = await api.post("/delivery/scan-qr", { qrToken: token });
+      const assignmentId = qrModal.targetDelivery?.ids?.[0] || qrModal.targetDelivery?.id;
+      const res = await api.post("/delivery/scan-qr", { qrToken: token, assignmentId });
       const selected = {};
       res.data.orders.forEach((order) => {
         selected[order.assignmentId] = true;
       });
-      setQrModal({ isOpen: false, token: "", loading: false, error: "" });
+      setQrModal({ isOpen: false, token: "", loading: false, error: "", targetDelivery: null });
       setConfirmModal({
         isOpen: true,
         customer: res.data.customer,
         orders: res.data.orders,
         selected,
+        photos: {},
         loading: false,
       });
       fetchDeliveries();
+      // Automatically open camera modal so camera opens for capturing product at customer door!
+      if (res.data.orders && res.data.orders.length > 0) {
+        setCameraModal({ isOpen: true, ord: res.data.orders[0] });
+      }
     } catch (e) {
       setQrModal((prev) => ({
         ...prev,
@@ -206,18 +217,42 @@ const MyDeliveries = () => {
   const handleRequestConfirmation = async () => {
     const selectedOrders = confirmModal.orders.filter((order) => confirmModal.selected[order.assignmentId]);
     if (selectedOrders.length === 0) return showToast("Select at least one delivered item.", "error");
+
+    // Verify proof photo for every selected item
+    const missingPhotos = selectedOrders.filter(
+      (order) => !confirmModal.photos?.[order.assignmentId]?.file && !confirmModal.photos?.[order.assignmentId]?.uploadedUrl
+    );
+    if (missingPhotos.length > 0) {
+      const missingNames = missingPhotos.map((o) => o.item?.label || `Item #${o.assignmentId}`).join(", ");
+      return showToast(`Please capture proof photo for: ${missingNames}`, "error");
+    }
+
     setConfirmModal((prev) => ({ ...prev, loading: true }));
     try {
       await Promise.all(
-        selectedOrders.map((order) =>
-          api.post(`/delivery/${order.orderId}/request-confirmation`, {
+        selectedOrders.map(async (order) => {
+          let photoUrl = confirmModal.photos?.[order.assignmentId]?.uploadedUrl;
+          if (!photoUrl && confirmModal.photos?.[order.assignmentId]?.file) {
+            const formData = new FormData();
+            formData.append("photo", confirmModal.photos[order.assignmentId].file);
+            formData.append("orderId", order.orderId);
+            formData.append("orderType", order.orderType);
+            formData.append("assignmentId", order.assignmentId);
+            const uploadRes = await api.post("/delivery/upload-proof", formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            photoUrl = uploadRes.data.photoUrl;
+          }
+
+          return api.post(`/delivery/${order.orderId}/request-confirmation`, {
             orderType: order.orderType,
             itemIds: [order.assignmentId],
-          })
-        )
+            photoUrl,
+          });
+        })
       );
-      showToast("Customer confirmation requested.");
-      setConfirmModal({ isOpen: false, customer: null, orders: [], selected: {}, loading: false });
+      showToast("Delivery photo proof uploaded & customer confirmation requested! ✓");
+      setConfirmModal({ isOpen: false, customer: null, orders: [], selected: {}, photos: {}, loading: false });
       fetchDeliveries();
     } catch (e) {
       showToast(e.response?.data?.message || "Failed to request confirmation.", "error");
@@ -588,6 +623,19 @@ const MyDeliveries = () => {
                   <div>
                     📅 Scheduled: {group.deliveryDate ? fmt(group.deliveryDate) : fmt(group.order?.startDate)}
                   </div>
+                  {(group.deliveryStartTime || group.outForDeliveryAt) && (
+                    <div style={{ color: "#2563eb", fontWeight: "600", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                      🚀 Started: {new Date(group.deliveryStartTime || group.outForDeliveryAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                      {group.estimatedDeliveryTime && (
+                        <span> · ⏱️ ETA: {new Date(group.estimatedDeliveryTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}</span>
+                      )}
+                    </div>
+                  )}
+                  {group.estimatedDeliveryTime && !group.deliveredAt && !group.deliveryCompletedAt && new Date() > new Date(group.estimatedDeliveryTime) && (
+                    <div style={{ color: "#dc2626", fontWeight: "700", fontSize: "11.5px", background: "#fef2f2", border: "1px solid #fecaca", padding: "2px 8px", borderRadius: "6px", display: "inline-block" }}>
+                      ⚠️ Delayed by {Math.max(1, Math.round((Date.now() - new Date(group.estimatedDeliveryTime).getTime()) / (1000 * 60)))} mins
+                    </div>
+                  )}
                   {group.deliveredAt && (
                     <div style={{ color: "#166534", fontWeight: "700" }}>
                       ✅ Completed:{" "}
@@ -606,12 +654,20 @@ const MyDeliveries = () => {
                   const cur = (group.deliveryStatus || '').toUpperCase().replace(/ /g, '_');
                   if (cur === 'ASSIGNED') {
                     return (
-                      <button
-                        onClick={() => handleUpdateStatus(group.ids, 'PRODUCT_COLLECTED')}
-                        style={{ width: "100%", padding: "10px", marginBottom: "8px", background: "#16a34a", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 2px 6px rgba(22,163,74,0.3)" }}
-                      >
-                        📦 Collect Product
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        <button
+                          onClick={() => handleUpdateStatus(group.ids, 'PRODUCT_COLLECTED')}
+                          style={{ flex: 1, padding: "10px", background: "#16a34a", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                        >
+                          📦 Collect
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStatus(group.ids, 'OUT_FOR_DELIVERY')}
+                          style={{ flex: 1.5, padding: "10px", background: "#2563eb", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 2px 6px rgba(37,99,235,0.3)" }}
+                        >
+                          🚚 Start Delivery
+                        </button>
+                      </div>
                     );
                   }
                   if (cur === 'PRODUCT_COLLECTED') {
@@ -637,10 +693,18 @@ const MyDeliveries = () => {
                   if (cur === 'ARRIVED') {
                     return (
                       <button
-                        onClick={() => handleUpdateStatus(group.ids, 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION')}
+                        onClick={() => {
+                          setQrModal({
+                            isOpen: true,
+                            token: group.order?.doorQrToken || "",
+                            loading: false,
+                            error: "",
+                            targetDelivery: group,
+                          });
+                        }}
                         style={{ width: "100%", padding: "10px", marginBottom: "8px", background: "#0d9488", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 2px 6px rgba(13,148,136,0.3)" }}
                       >
-                        🤝 Confirm Delivery Handover
+                        📷 Scan Door QR & Capture Photo
                       </button>
                     );
                   }
@@ -834,6 +898,100 @@ const MyDeliveries = () => {
                       </div>
                     </div>
                   </div>
+                  {d.deliveryProof && (
+                    <div style={{ marginBottom: "20px" }}>
+                      <h4
+                        style={{
+                          margin: "0 0 10px 0",
+                          color: "#64748b",
+                          fontSize: "12px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        📸 Delivery Proof Photo
+                      </h4>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          background: "#f0fdf4",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #bbf7d0",
+                        }}
+                      >
+                        <img
+                          src={d.deliveryProof}
+                          alt="Delivery Proof"
+                          style={{
+                            width: "56px",
+                            height: "56px",
+                            objectFit: "cover",
+                            borderRadius: "8px",
+                            border: "1.5px solid #22c55e",
+                            cursor: "pointer",
+                          }}
+                          onClick={() =>
+                            setProofModal({
+                              isOpen: true,
+                              data: {
+                                photoUrl: d.deliveryProof,
+                                customerName: order?.customerName,
+                                address: order?.address,
+                                productName: d.items?.[0]?.milkType || d.items?.[0]?.product?.name || "Delivered Milk",
+                                quantity: d.items?.[0]?.dailyQuantity,
+                                unit: d.items?.[0]?.product?.unit || "L",
+                                deliveryBoyName: profile?.name || "Delivery Partner",
+                                status: d.deliveryStatus,
+                                capturedAt: d.userConfirmedAt || d.deliveredAt || d.updatedAt,
+                                orderId: d.orderId,
+                                orderType: d.orderType,
+                              },
+                            })
+                          }
+                        />
+                        <div>
+                          <div style={{ fontSize: "13px", fontWeight: "700", color: "#166534" }}>✓ Photo Proof Attached</div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setProofModal({
+                                isOpen: true,
+                                data: {
+                                  photoUrl: d.deliveryProof,
+                                  customerName: order?.customerName,
+                                  address: order?.address,
+                                  productName: d.items?.[0]?.milkType || d.items?.[0]?.product?.name || "Delivered Milk",
+                                  quantity: d.items?.[0]?.dailyQuantity,
+                                  unit: d.items?.[0]?.product?.unit || "L",
+                                  deliveryBoyName: profile?.name || "Delivery Partner",
+                                  status: d.deliveryStatus,
+                                  capturedAt: d.userConfirmedAt || d.deliveredAt || d.updatedAt,
+                                  orderId: d.orderId,
+                                  orderType: d.orderType,
+                                },
+                              })
+                            }
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              color: "#2563eb",
+                              fontSize: "12.5px",
+                              fontWeight: "600",
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                              marginTop: "2px",
+                            }}
+                          >
+                            View Full Photo & Details ↗
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <hr style={{ border: "none", borderTop: "1px solid #f1f5f9", margin: "0 0 20px 0" }} />
 
                   {/* Status Tracker */}
@@ -923,10 +1081,19 @@ const MyDeliveries = () => {
                         )}
                         {cur === 'ARRIVED' && (
                           <button
-                            onClick={() => handleUpdateStatus(d.ids, 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION')}
-                            style={{ flex: 1, padding: "12px", background: "#0d9488", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}
+                            onClick={() => {
+                              setViewModal({ isOpen: false, data: null });
+                              setQrModal({
+                                isOpen: true,
+                                token: d.order?.doorQrToken || "",
+                                loading: false,
+                                error: "",
+                                targetDelivery: d,
+                              });
+                            }}
+                            style={{ flex: 1, padding: "12px", background: "#0d9488", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
                           >
-                            🤝 Confirm Delivery Handover
+                            📷 Scan Door QR & Capture Photo
                           </button>
                         )}
                         {(cur === 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION' || cur === 'AWAITING_USER_CONFIRMATION') && (
@@ -1110,7 +1277,8 @@ const MyDeliveries = () => {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(15,23,42,0.7)",
+            background: "rgba(15,23,42,0.75)",
+            backdropFilter: "blur(3px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1123,31 +1291,53 @@ const MyDeliveries = () => {
               background: "white",
               borderRadius: "16px",
               width: "100%",
-              maxWidth: "420px",
+              maxWidth: "430px",
               padding: "24px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
             }}
           >
-            <h3 style={{ margin: "0 0 12px 0", color: "#1e293b" }}>▣ Scan Customer Door QR</h3>
-            <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "16px" }}>
-              Scan the permanent QR code pasted on the customer's door, or enter the token manually.
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+              <span style={{ fontSize: "20px" }}>▣</span>
+              <h3 style={{ margin: 0, color: "#1e293b", fontSize: "17px", fontWeight: "700" }}>
+                Scan Customer Door QR / Token
+              </h3>
+            </div>
+
+            {qrModal.targetDelivery && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "10px 14px", margin: "12px 0 14px", fontSize: "13px" }}>
+                <div>👤 <strong>{qrModal.targetDelivery.order?.customerName || "Customer"}</strong></div>
+                <div style={{ color: "#475569", fontSize: "12px", marginTop: "2px" }}>
+                  📍 {qrModal.targetDelivery.order?.pincode ? `${qrModal.targetDelivery.order.pincode} - ` : ""}{qrModal.targetDelivery.order?.address || ""}
+                </div>
+              </div>
+            )}
+
+            <p style={{ color: "#64748b", fontSize: "13px", lineHeight: "1.45", marginBottom: "14px" }}>
+              Scan the door QR code or enter the customer's door token. <strong>Next step: Camera will open to capture the delivered product photo at the door.</strong>
             </p>
+
             <button
               onClick={handleCameraScan}
               style={{
                 width: "100%",
-                padding: "12px",
+                padding: "11px",
                 background: "#1e3a8a",
                 color: "white",
                 border: "none",
                 borderRadius: "8px",
                 cursor: "pointer",
                 fontWeight: "700",
-                fontSize: "14px",
+                fontSize: "13.5px",
                 marginBottom: "12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
               }}
             >
               📷 Open Camera Scanner
             </button>
+
             <input
               type="text"
               value={qrModal.token}
@@ -1155,22 +1345,45 @@ const MyDeliveries = () => {
               placeholder="Or paste Door QR Token here..."
               style={{
                 width: "100%",
-                padding: "10px",
+                padding: "10px 12px",
                 borderRadius: "8px",
-                border: "1px solid #cbd5e1",
-                fontSize: "14px",
+                border: "1.5px solid #cbd5e1",
+                fontSize: "13.5px",
                 boxSizing: "border-box",
-                marginBottom: "12px",
+                marginBottom: qrModal.targetDelivery?.order?.doorQrToken ? "6px" : "12px",
               }}
             />
-            {qrModal.error && (
-              <div style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>
-                {qrModal.error}
+
+            {qrModal.targetDelivery?.order?.doorQrToken && (
+              <div style={{ marginBottom: "12px", textAlign: "right" }}>
+                <button
+                  type="button"
+                  onClick={() => setQrModal({ ...qrModal, token: qrModal.targetDelivery.order.doorQrToken })}
+                  style={{
+                    background: "#eff6ff",
+                    border: "1px solid #bfdbfe",
+                    color: "#2563eb",
+                    borderRadius: "6px",
+                    padding: "4px 8px",
+                    fontSize: "11.5px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  ⚡ Auto-fill Token ({qrModal.targetDelivery.order.doorQrToken.slice(0, 8)}...)
+                </button>
               </div>
             )}
+
+            {qrModal.error && (
+              <div style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px", background: "#fef2f2", padding: "8px", borderRadius: "6px", border: "1px solid #fecaca" }}>
+                ⚠️ {qrModal.error}
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: "10px" }}>
               <button
-                onClick={() => setQrModal({ isOpen: false, token: "", loading: false, error: "" })}
+                onClick={() => setQrModal({ isOpen: false, token: "", loading: false, error: "", targetDelivery: null })}
                 style={{
                   flex: 1,
                   padding: "10px",
@@ -1187,7 +1400,7 @@ const MyDeliveries = () => {
                 disabled={qrModal.loading}
                 onClick={() => handleScanQr()}
                 style={{
-                  flex: 1,
+                  flex: 1.3,
                   padding: "10px",
                   background: "#16a34a",
                   color: "white",
@@ -1195,119 +1408,275 @@ const MyDeliveries = () => {
                   borderRadius: "8px",
                   cursor: qrModal.loading ? "not-allowed" : "pointer",
                   fontWeight: "700",
+                  fontSize: "13.5px",
                 }}
               >
-                {qrModal.loading ? "Verifying..." : "Verify Token"}
+                {qrModal.loading ? "Verifying..." : "Verify & Open Camera →"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Select Delivered Items Confirmation Modal */}
-      {confirmModal.isOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2200,
-            padding: "20px",
-          }}
-        >
+      {/* Select Delivered Items & Camera Proof Modal */}
+      {confirmModal.isOpen && (() => {
+        const selectedList = confirmModal.orders.filter((ord) => confirmModal.selected[ord.assignmentId]);
+        const missingCount = selectedList.filter(
+          (ord) => !confirmModal.photos?.[ord.assignmentId]?.file && !confirmModal.photos?.[ord.assignmentId]?.uploadedUrl
+        ).length;
+        const canSubmit = selectedList.length > 0 && missingCount === 0;
+
+        return (
           <div
             style={{
-              background: "white",
-              borderRadius: "16px",
-              width: "100%",
-              maxWidth: "440px",
-              padding: "24px",
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15,23,42,0.75)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 2200,
+              padding: "16px",
             }}
           >
-            <h3 style={{ margin: "0 0 8px 0", color: "#1e293b" }}>☑ Select Delivered Items</h3>
-            <p style={{ color: "#64748b", fontSize: "13.5px", marginBottom: "16px" }}>
-              Customer: <strong>{confirmModal.customer?.name}</strong>
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
-              {confirmModal.orders.map((ord) => (
-                <label
-                  key={ord.assignmentId}
+            <div
+              style={{
+                background: "white",
+                borderRadius: "18px",
+                width: "100%",
+                maxWidth: "480px",
+                padding: "24px",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+              }}
+            >
+              <h3 style={{ margin: "0 0 6px 0", color: "#1e293b", fontSize: "18px", fontWeight: "700" }}>
+                ☑ Select Items & Proof Photos
+              </h3>
+              <p style={{ color: "#64748b", fontSize: "13.5px", marginBottom: "16px" }}>
+                Customer: <strong style={{ color: "#0f172a" }}>{confirmModal.customer?.name}</strong>
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
+                {confirmModal.orders.map((ord) => {
+                  const isChecked = Boolean(confirmModal.selected[ord.assignmentId]);
+                  const photoObj = confirmModal.photos?.[ord.assignmentId];
+                  return (
+                    <div
+                      key={ord.assignmentId}
+                      style={{
+                        background: isChecked ? "#f0fdf4" : "#f8fafc",
+                        borderRadius: "12px",
+                        border: isChecked ? "1.5px solid #86efac" : "1px solid #e2e8f0",
+                        padding: "12px 14px",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) =>
+                            setConfirmModal({
+                              ...confirmModal,
+                              selected: {
+                                ...confirmModal.selected,
+                                [ord.assignmentId]: e.target.checked,
+                              },
+                            })
+                          }
+                          style={{ width: "18px", height: "18px", accentColor: "#16a34a" }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: "14px", fontWeight: "700", color: "#1e293b" }}>
+                            {ord.item?.label}
+                          </span>
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>
+                            Quantity: {ord.item?.quantity} {ord.item?.unit || "L"}
+                          </div>
+                        </div>
+                      </label>
+
+                      {/* Camera Photo capture section for checked products */}
+                      {isChecked && (
+                        <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed #bbf7d0" }}>
+                          {photoObj ? (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <img
+                                  src={photoObj.previewUrl}
+                                  alt="Proof"
+                                  style={{
+                                    width: "44px",
+                                    height: "44px",
+                                    objectFit: "cover",
+                                    borderRadius: "8px",
+                                    border: "1.5px solid #22c55e",
+                                    cursor: "pointer",
+                                  }}
+                                  onClick={() =>
+                                    setProofModal({
+                                      isOpen: true,
+                                      data: {
+                                        photoUrl: photoObj.previewUrl,
+                                        productName: ord.item?.label,
+                                        quantity: ord.item?.quantity,
+                                        unit: ord.item?.unit,
+                                        customerName: confirmModal.customer?.name,
+                                        deliveryBoyName: profile?.name || "Delivery Partner",
+                                        status: "CAPTURED",
+                                        capturedAt: new Date(),
+                                        orderId: ord.orderId,
+                                        orderType: ord.orderType,
+                                      },
+                                    })
+                                  }
+                                />
+                                <div>
+                                  <span style={{ fontSize: "12.5px", fontWeight: "700", color: "#16a34a" }}>
+                                    ✓ Photo Attached
+                                  </span>
+                                  <div style={{ fontSize: "11px", color: "#64748b" }}>Click image to view</div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setCameraModal({ isOpen: true, ord })}
+                                style={{
+                                  padding: "6px 12px",
+                                  background: "#ffffff",
+                                  border: "1px solid #cbd5e1",
+                                  borderRadius: "6px",
+                                  fontSize: "12px",
+                                  color: "#475569",
+                                  fontWeight: "600",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                🔄 Retake
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600" }}>
+                                ⚠️ Photo Proof Required
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setCameraModal({ isOpen: true, ord })}
+                                style={{
+                                  padding: "7px 14px",
+                                  background: "#2563eb",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "8px",
+                                  fontSize: "12.5px",
+                                  fontWeight: "700",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  boxShadow: "0 2px 4px rgba(37,99,235,0.2)",
+                                }}
+                              >
+                                📸 Capture Photo
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={() =>
+                    setConfirmModal({
+                      isOpen: false,
+                      customer: null,
+                      orders: [],
+                      selected: {},
+                      photos: {},
+                      loading: false,
+                    })
+                  }
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "10px 14px",
-                    background: "#f8fafc",
-                    borderRadius: "8px",
-                    border: "1px solid #e2e8f0",
+                    flex: 1,
+                    padding: "11px",
+                    background: "white",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "10px",
                     cursor: "pointer",
+                    fontWeight: "600",
+                    color: "#475569",
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(confirmModal.selected[ord.assignmentId])}
-                    onChange={(e) =>
-                      setConfirmModal({
-                        ...confirmModal,
-                        selected: {
-                          ...confirmModal.selected,
-                          [ord.assignmentId]: e.target.checked,
-                        },
-                      })
-                    }
-                  />
-                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
-                    {ord.item?.label} ({ord.item?.quantity} {ord.item?.unit || "L"})
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button
-                onClick={() =>
-                  setConfirmModal({
-                    isOpen: false,
-                    customer: null,
-                    orders: [],
-                    selected: {},
-                    loading: false,
-                  })
-                }
-                style={{
-                  flex: 1,
-                  padding: "10px",
-                  background: "white",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                disabled={confirmModal.loading}
-                onClick={handleRequestConfirmation}
-                style={{
-                  flex: 1,
-                  padding: "10px",
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: confirmModal.loading ? "not-allowed" : "pointer",
-                  fontWeight: "700",
-                }}
-              >
-                {confirmModal.loading ? "Requesting..." : "Send to Customer"}
-              </button>
+                  Cancel
+                </button>
+                <button
+                  disabled={confirmModal.loading || !canSubmit}
+                  onClick={handleRequestConfirmation}
+                  style={{
+                    flex: 1.5,
+                    padding: "11px",
+                    background: canSubmit ? "#16a34a" : "#94a3b8",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "10px",
+                    cursor: confirmModal.loading || !canSubmit ? "not-allowed" : "pointer",
+                    fontWeight: "700",
+                    fontSize: "13.5px",
+                    boxShadow: canSubmit ? "0 4px 6px -1px rgba(22, 163, 74, 0.3)" : "none",
+                  }}
+                >
+                  {confirmModal.loading
+                    ? "Uploading & Requesting..."
+                    : missingCount > 0
+                    ? `Photos Required (${selectedList.length - missingCount}/${selectedList.length})`
+                    : "Send to Customer ✓"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Camera Capture Modal */}
+      <DeliveryPhotoCaptureModal
+        isOpen={cameraModal.isOpen}
+        onClose={() => setCameraModal({ isOpen: false, ord: null })}
+        productInfo={cameraModal.ord?.item}
+        customerInfo={confirmModal.customer}
+        onPhotoCaptured={(file, previewUrl) => {
+          if (cameraModal.ord) {
+            setConfirmModal((prev) => ({
+              ...prev,
+              photos: {
+                ...prev.photos,
+                [cameraModal.ord.assignmentId]: { file, previewUrl },
+              },
+            }));
+          }
+        }}
+      />
+
+      {/* Proof Photo Fullscreen View Modal */}
+      <DeliveryProofViewModal
+        isOpen={proofModal.isOpen}
+        onClose={() => setProofModal({ isOpen: false, data: null })}
+        proofData={proofModal.data}
+      />
     </div>
   );
 };

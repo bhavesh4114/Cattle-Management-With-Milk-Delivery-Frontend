@@ -4,6 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../../../../services/api';
 import DeliveryAssignmentPanel from './DeliveryAssignmentPanel';
+import DeliveryProofViewModal from '../../components/DeliveryProofViewModal';
 
 const MilkSubscriptionsAdmin = () => {
     const [subs, setSubs] = useState([]);
@@ -14,6 +15,7 @@ const MilkSubscriptionsAdmin = () => {
     const [receiptModal, setReceiptModal] = useState({ isOpen: false, data: null });
     const [assignModal, setAssignModal] = useState({ isOpen: false, orderId: null, orderType: 'sub', currentDeliveryBoyId: null });
     const [trackModal, setTrackModal] = useState({ isOpen: false, data: null, loading: false });
+    const [proofViewModal, setProofViewModal] = useState({ isOpen: false, data: null });
     const [toast, setToast] = useState({ text: '', type: '' });
     const [deliveryBoys, setDeliveryBoys] = useState([]);
 
@@ -797,8 +799,111 @@ const MilkSubscriptionsAdmin = () => {
                                         </div>
                                     )}
 
-                                    {/* Timestamps Audit Box */}
-                                    {trackModal.data.timestamps && (
+                                    {/* Delivery Photo Proof Section */}
+                                    {((trackModal.data.deliveryProofs && trackModal.data.deliveryProofs.length > 0) || trackModal.data.deliveryProof) ? (
+                                        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '14px', padding: '16px', marginBottom: '20px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                <div style={{ fontSize: '13px', fontWeight: '800', color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span>📸</span> DELIVERY PROOF & VERIFICATION
+                                                </div>
+                                                <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: '700', padding: '3px 10px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+                                                    ✓ Door QR Verified
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                {(trackModal.data.deliveryProofs && trackModal.data.deliveryProofs.length > 0
+                                                    ? trackModal.data.deliveryProofs
+                                                    : [{
+                                                        id: 1,
+                                                        photoUrl: trackModal.data.deliveryProof,
+                                                        productName: trackModal.data.productName || trackModal.data.milkType,
+                                                        quantity: trackModal.data.dailyQuantity,
+                                                        unit: trackModal.data.unit,
+                                                        deliveryBoyName: trackModal.data.deliveryBoy?.name,
+                                                        status: trackModal.data.deliveryStatus,
+                                                        capturedAt: trackModal.data.timestamps?.deliveryConfirmedAt || trackModal.data.timestamps?.customerConfirmedAt
+                                                    }]
+                                                ).map((proof, pIdx) => (
+                                                    <div key={pIdx} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: '#ffffff', padding: '10px 14px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                                                        <img
+                                                            src={proof.photoUrl}
+                                                            alt="Delivery Proof"
+                                                            style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #22c55e', cursor: 'pointer', flexShrink: 0 }}
+                                                            onClick={() => setProofViewModal({
+                                                                isOpen: true,
+                                                                data: {
+                                                                    photoUrl: proof.photoUrl,
+                                                                    productName: proof.productName || proof.itemLabel || trackModal.data.productName,
+                                                                    quantity: proof.quantity || trackModal.data.dailyQuantity,
+                                                                    unit: proof.unit || trackModal.data.unit,
+                                                                    customerName: trackModal.data.customerName,
+                                                                    address: trackModal.data.address,
+                                                                    deliveryBoyName: proof.deliveryBoyName || trackModal.data.deliveryBoy?.name,
+                                                                    status: proof.status || trackModal.data.deliveryStatus,
+                                                                    capturedAt: proof.capturedAt || trackModal.data.timestamps?.deliveryConfirmedAt,
+                                                                    orderId: trackModal.data.orderId,
+                                                                    orderType: trackModal.data.orderType || 'sub',
+                                                                }
+                                                            })}
+                                                        />
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                             <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#0f172a' }}>
+                                                                 {proof.productName || proof.itemLabel || trackModal.data.productName || 'Milk'}
+                                                                 {proof.quantity ? ` (${proof.quantity} ${proof.unit || 'L'})` : ''}
+                                                             </div>
+                                                             <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                                                                 Delivered by: <strong>{proof.deliveryBoyName || trackModal.data.deliveryBoy?.name || 'Assigned Boy'}</strong>
+                                                             </div>
+                                                             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                                                 🕒 {proof.capturedAt ? new Date(proof.capturedAt).toLocaleString('en-IN') : 'Delivered on Schedule'}
+                                                             </div>
+                                                         </div>
+                                                         <button
+                                                             onClick={() => setProofViewModal({
+                                                                 isOpen: true,
+                                                                 data: {
+                                                                     photoUrl: proof.photoUrl,
+                                                                     productName: proof.productName || proof.itemLabel || trackModal.data.productName,
+                                                                     quantity: proof.quantity || trackModal.data.dailyQuantity,
+                                                                     unit: proof.unit || trackModal.data.unit,
+                                                                     customerName: trackModal.data.customerName,
+                                                                     address: trackModal.data.address,
+                                                                     deliveryBoyName: proof.deliveryBoyName || trackModal.data.deliveryBoy?.name,
+                                                                     status: proof.status || trackModal.data.deliveryStatus,
+                                                                     capturedAt: proof.capturedAt || trackModal.data.timestamps?.deliveryConfirmedAt,
+                                                                     orderId: trackModal.data.orderId,
+                                                                     orderType: trackModal.data.orderType || 'sub',
+                                                                 }
+                                                             })}
+                                                             style={{
+                                                                 padding: '6px 12px',
+                                                                 background: '#2563eb',
+                                                                 color: '#ffffff',
+                                                                 border: 'none',
+                                                                 borderRadius: '6px',
+                                                                 fontSize: '12px',
+                                                                 fontWeight: '700',
+                                                                 cursor: 'pointer',
+                                                                 display: 'flex',
+                                                                 alignItems: 'center',
+                                                                 gap: '4px',
+                                                                 whiteSpace: 'nowrap'
+                                                             }}
+                                                         >
+                                                             🔍 View Photo
+                                                         </button>
+                                                     </div>
+                                                 ))}
+                                             </div>
+                                         </div>
+                                     ) : ['Delivered', 'DELIVERED', 'AWAITING_USER_CONFIRMATION', 'DELIVERY_PENDING_CUSTOMER_CONFIRMATION'].includes(trackModal.data.deliveryStatus) ? (
+                                         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                             <span>⚠️</span> Delivery Proof: No photo attached for this record.
+                                         </div>
+                                     ) : null}
+
+                                     {/* Timestamps Audit Box */}
+                                     {trackModal.data.timestamps && (
                                         <div style={{ background: '#fdfefe', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', marginBottom: '20px' }}>
                                             <div style={{ fontSize: '12px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
                                                 🕒 Lifecycle Timestamps Audit
@@ -879,6 +984,13 @@ const MilkSubscriptionsAdmin = () => {
                     </div>
                 </div>
             )}
+
+            {/* Delivery Proof Fullscreen Modal */}
+            <DeliveryProofViewModal
+                isOpen={proofViewModal.isOpen}
+                onClose={() => setProofViewModal({ isOpen: false, data: null })}
+                proofData={proofViewModal.data}
+            />
         </div>
     );
 };

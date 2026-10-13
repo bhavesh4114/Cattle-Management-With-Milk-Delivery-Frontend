@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import api from "../../../../services/api";
 
 const MilkDeliveryRequestsCustomer = ({ onBack, initialSubscriptionId = null }) => {
-  const [context, setContext] = useState(null);
+  const [context, setContext] = useState({ subscriptions: [] });
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -97,8 +97,8 @@ const MilkDeliveryRequestsCustomer = ({ onBack, initialSubscriptionId = null }) 
   }, [form.deliveryDate]);
 
   const currentSub = useMemo(() => {
-    return (context.subscriptions || []).find((s) => s.id === form.subscriptionId) || context.subscriptions?.[0] || null;
-  }, [context.subscriptions, form.subscriptionId]);
+    return (context?.subscriptions || []).find((s) => s.id === form.subscriptionId) || context?.subscriptions?.[0] || null;
+  }, [context?.subscriptions, form.subscriptionId]);
   const currentUnit = currentSub?.unit || "L";
 
   const handleSubmit = async (e) => {
@@ -272,13 +272,19 @@ const MilkDeliveryRequestsCustomer = ({ onBack, initialSubscriptionId = null }) 
           border: "#a5f3fc",
           label: "🥛 Handover Pending Confirmation",
         };
-      case "APPROVED":
       case "DELIVERED":
         return {
           bg: "#dcfce7",
           color: "#166534",
           border: "#bbf7d0",
-          label: "✅ Delivered / Approved",
+          label: "✅ Delivered & Confirmed",
+        };
+      case "APPROVED":
+        return {
+          bg: "#dcfce7",
+          color: "#166534",
+          border: "#bbf7d0",
+          label: "✅ Approved",
         };
       case "REJECTED":
         return {
@@ -487,7 +493,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack, initialSubscriptionId = null }) 
                   value={form.subscriptionId || ""}
                   onChange={(e) => {
                     const sId = parseInt(e.target.value, 10);
-                    const sel = context.subscriptions.find((s) => s.id === sId);
+                    const sel = (context?.subscriptions || []).find((s) => s.id === sId);
                     setForm((prev) => ({
                       ...prev,
                       subscriptionId: sId,
@@ -506,7 +512,7 @@ const MilkDeliveryRequestsCustomer = ({ onBack, initialSubscriptionId = null }) 
                     color: "#0f172a",
                   }}
                 >
-                  {context.subscriptions.map((s) => (
+                  {(context?.subscriptions || []).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.productName || s.milkType} — {s.dailyQuantity} {s.unit || "L"}/day (Active till {new Date(s.endDate).toLocaleDateString("en-GB")})
                     </option>
@@ -910,7 +916,11 @@ const MilkDeliveryRequestsCustomer = ({ onBack, initialSubscriptionId = null }) 
               </thead>
               <tbody>
                 {requests.map((r) => {
-                  const badge = getStatusBadge(r.status);
+                  const effectiveStatus =
+                    (r.deliveryStatus && r.deliveryStatus.toUpperCase() === "DELIVERED") || r.status === "DELIVERED"
+                      ? "DELIVERED"
+                      : r.deliveryStatus || r.status;
+                  const badge = getStatusBadge(effectiveStatus);
                   const isSkip = r.requestType === "SKIP_DELIVERY";
                   return (
                     <tr key={r.id} style={{ borderBottom: "1px solid #e2e8f0" }}>

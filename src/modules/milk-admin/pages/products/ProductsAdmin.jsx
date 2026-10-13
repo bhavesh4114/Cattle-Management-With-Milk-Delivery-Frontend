@@ -170,8 +170,30 @@ const ProductsAdmin = () => {
                                             {p.image ? <img src={p.image} alt={p.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '8px' }} /> : <div style={{ width: '40px', height: '40px', background: '#e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '12px' }}>No Img</div>}
                                         </td>
                                         <td style={{ padding: '12px', fontWeight: '600', color: '#1e293b' }}>{p.name}</td>
-                                        <td style={{ padding: '12px', color: '#64748b' }}>{p.size} {p.unit}</td>
-                                        <td style={{ padding: '12px', fontWeight: 'bold', color: '#16a34a' }}>₹{p.price}</td>
+                                        <td style={{ padding: '12px', color: '#64748b' }}>{p.size ? `${p.size} ${p.unit || ''}` : '-'}</td>
+                                        <td style={{ padding: '12px' }}>
+                                            {(() => {
+                                                try {
+                                                    const saved = JSON.parse(localStorage.getItem('milkAdminDiscounts') || '[]');
+                                                    const specific = saved.find(d => d.status === 'ACTIVE' && d.discountType === 'PERCENTAGE' && d.targetProductName && d.targetProductName !== 'ALL' && d.targetProductName.trim().toLowerCase() === (p.name || '').trim().toLowerCase());
+                                                    const general = saved.find(d => d.status === 'ACTIVE' && d.discountType === 'PERCENTAGE' && (!d.targetProductName || d.targetProductName === 'ALL'));
+                                                    const best = specific || general;
+                                                    if (best) {
+                                                        const discounted = Math.max(1, Math.round(p.price * (1 - best.value / 100)));
+                                                        return (
+                                                            <div>
+                                                                <span style={{ fontWeight: 'bold', color: '#16a34a', fontSize: '14px' }}>₹{discounted}</span>
+                                                                <span style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through', marginLeft: '6px' }}>₹{p.price}</span>
+                                                                <div style={{ fontSize: '10.5px', color: '#15803d', fontWeight: '600', marginTop: '2px' }}>
+                                                                    🏷️ {best.value}% OFF ({best.code}{best.targetProductName && best.targetProductName !== 'ALL' ? ` • ${best.targetProductName}` : ''})
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                } catch {}
+                                                return <span style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{p.price}</span>;
+                                            })()}
+                                        </td>
                                         <td style={{ padding: '12px', textAlign: 'center' }}>
                                             <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', background: p.isActive ? '#dcfce7' : '#fee2e2', color: p.isActive ? '#166534' : '#b91c1c' }}>
                                                 {p.isActive ? 'Active' : 'Inactive'}
