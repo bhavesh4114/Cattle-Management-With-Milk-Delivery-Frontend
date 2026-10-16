@@ -1107,7 +1107,7 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
                     </div>
                   )}
 
-                  {!['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION', 'ARRIVED', 'OUT_FOR_DELIVERY'].includes((group.deliveryStatus || '').toUpperCase().replace(/ /g, '_')) && (
+                  {!['Delivered', 'DELIVERED', 'COMPLETED'].includes(group.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION'].includes((group.deliveryStatus || '').toUpperCase().replace(/ /g, '_')) && (
                     <div style={{ padding: '14px 18px', background: '#ecfeff', borderRadius: '12px', border: '1.5px solid #14b8a6', marginBottom: '18px' }}>
                       <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🥛 Delivery Confirmation</div>
                       <div style={{ fontSize: '13px', color: '#115e59', marginTop: '3px', fontWeight: '600' }}>Your delivery has arrived/handed over. Please confirm that you received your delivery.</div>
@@ -1873,7 +1873,7 @@ const UserOrderTracking = ({ onBack, initialTrackOrder }) => {
                         </div>
                       )}
 
-                      {(trackModal.data.canCustomerConfirm || trackModal.data.awaitingUserConfirmation || (!['Delivered', 'DELIVERED'].includes(trackModal.data.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION', 'ARRIVED', 'OUT_FOR_DELIVERY'].includes((trackModal.data.deliveryStatus || '').toUpperCase().replace(/ /g, '_')))) && (
+                      {(trackModal.data.canCustomerConfirm || trackModal.data.awaitingUserConfirmation || (!['Delivered', 'DELIVERED'].includes(trackModal.data.deliveryStatus) && ['DELIVERY_PENDING_CUSTOMER_CONFIRMATION', 'AWAITING_USER_CONFIRMATION'].includes((trackModal.data.deliveryStatus || '').toUpperCase().replace(/ /g, '_')))) && (
                         <div style={{ marginBottom: '20px', padding: '16px 20px', background: 'linear-gradient(135deg, #ecfeff, #ccfbf1)', borderRadius: '16px', border: '2px solid #14b8a6', boxShadow: '0 4px 12px rgba(20,184,166,0.16)' }}>
                           <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>🥛 Confirm Delivery Received</div>
                           <div style={{ fontSize: '12px', color: '#115e59', marginTop: '4px' }}>The delivery partner has reached / handed over your milk product. Please confirm that you received your delivery.</div>
