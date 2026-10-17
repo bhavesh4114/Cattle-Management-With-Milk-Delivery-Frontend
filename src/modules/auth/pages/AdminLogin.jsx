@@ -1,4 +1,4 @@
-import api from "../../../services/api";
+import { loginAdmin } from "../../../services/api";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
@@ -27,7 +27,10 @@ const AdminLogin = () => {
     setIsLoading(true);
 
     try {
-      const res = await api.post("/admin/auth/login", formData);
+      const res = await loginAdmin({
+        ...formData,
+        email: formData.email.trim().toLowerCase(),
+      });
 
       localStorage.setItem("adminToken", res.data.token);
       localStorage.setItem("adminData", JSON.stringify(res.data.admin));
@@ -66,7 +69,7 @@ const AdminLogin = () => {
           <p>Sign in to manage livestock records, health updates, and farm activity.</p>
         </div>
 
-        <form className="login-form" onSubmit={handleLogin} autoComplete="off">
+        <form className="login-form" onSubmit={handleLogin} autoComplete="on">
           <label htmlFor="email">Email address</label>
           <div className="input-shell">
             <span className="input-icon" aria-hidden="true">
@@ -82,7 +85,7 @@ const AdminLogin = () => {
               placeholder="admin@example.com"
               value={formData.email}
               onChange={handleChange}
-              autoComplete="new-email"
+              autoComplete="username"
               required
             />
           </div>
@@ -102,7 +105,7 @@ const AdminLogin = () => {
               placeholder="Enter your password"
               value={formData.password}
               onChange={handleChange}
-              autoComplete="new-password"
+              autoComplete="current-password"
               required
             />
             <button

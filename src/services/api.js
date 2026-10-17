@@ -18,6 +18,8 @@ const api = axios.create({
   baseURL: resolveBaseURL(),
 });
 
+export const loginAdmin = (credentials) => api.post("/admin/auth/login", credentials);
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("adminToken");
 
@@ -40,7 +42,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    const isLoginRequest = /\/admin\/auth\/login\/?$/i.test(String(error.config?.url || ""));
+
+    // Invalid credentials should stay on the login form so it can show the
+    // API's message instead of clearing state and forcing a page reload.
+    if (error.response && error.response.status === 401 && !isLoginRequest) {
       localStorage.removeItem("adminToken");
       localStorage.removeItem("adminData");
       window.location.href = "/login";
